@@ -22,29 +22,45 @@
 </head>
 <body class="bg-slate-900 text-slate-100 font-sans min-h-screen flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
 
-  <!-- ================= UNLOCK / SETUP SCREEN ================= -->
-  <div id="auth-screen" class="fixed inset-0 z-50 bg-slate-900 flex flex-col justify-center items-center p-6">
-    <div class="w-full max-w-sm text-center">
-      <div class="w-20 h-20 bg-indigo-600/20 text-indigo-400 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner border border-indigo-500/30">
-        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
-      </div>
-      <h1 class="text-2xl font-bold mb-2 text-white" id="auth-title">Unlock Vault</h1>
-      <p class="text-slate-400 text-sm mb-6" id="auth-desc">Enter PIN or use biometrics to decrypt local data.</p>
-      
-      <div class="space-y-3">
-        <input type="password" id="pin-input" maxlength="8" inputmode="numeric" placeholder="••••" class="w-full text-center text-3xl tracking-widest bg-slate-800 border border-slate-700 rounded-2xl py-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white placeholder-slate-600">
-        
-        <button id="auth-btn" onclick="handleAuth()" class="w-full bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-semibold py-4 rounded-2xl transition shadow-lg shadow-indigo-600/30">Unlock with PIN</button>
-
-        <!-- Biometrics Button (Shown if enabled) -->
-        <button id="bio-auth-btn" onclick="handleBiometricAuth()" class="w-full bg-slate-800 border border-slate-700 hover:bg-slate-750 text-indigo-400 font-medium py-3.5 rounded-2xl transition hidden flex items-center justify-center space-x-2">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457-.315-2.84-.873-4.085"/></svg>
-          <span>Use Fingerprint / Face ID</span>
-        </button>
-      </div>
-      <p id="auth-error" class="text-rose-400 text-xs mt-4 hidden">Authentication failed. Key mismatch.</p>
+<!-- Lock Screen Container -->
+<div id="lock-screen" class="flex flex-col items-center justify-center min-h-screen p-4 bg-slate-900 text-white">
+  <div class="w-full max-w-sm flex flex-col items-center space-y-6">
+    <div class="w-16 h-16 bg-slate-800/80 rounded-2xl flex items-center justify-center border border-slate-700">
+      <svg class="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+      </svg>
     </div>
+
+    <div class="text-center">
+      <h2 id="auth-title" class="text-2xl font-bold">Unlock Vault</h2>
+      <p id="auth-sub" class="text-xs text-slate-400 mt-1">Enter PIN or use biometrics to decrypt local data.</p>
+    </div>
+
+    <!-- PIN Input -->
+    <div class="w-full space-y-4">
+      <input type="password" id="pin-input" maxlength="8" placeholder="••••" 
+        class="w-full text-center text-2xl tracking-widest bg-slate-800/60 border border-slate-700 rounded-xl py-3 text-white focus:outline-none focus:border-indigo-500">
+      
+      <!-- Error Feedback -->
+      <p id="auth-error" class="text-rose-400 text-xs text-center hidden"></p>
+
+      <!-- Action Buttons -->
+      <button onclick="handleAuth()" id="btn-unlock" class="w-full bg-indigo-600 hover:bg-indigo-500 font-semibold py-3 rounded-xl transition">
+        Unlock with PIN
+      </button>
+
+      <button onclick="handleBiometricAuth()" id="btn-bio-login" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 font-medium py-3 rounded-xl transition hidden">
+        Use Fingerprint / Face ID
+      </button>
+    </div>
+
+    <!-- Emergency Reset Option -->
+    <button onclick="resetVault()" class="text-xs text-slate-500 hover:text-rose-400 underline pt-4">
+      Forgot PIN or clear local vault?
+    </button>
   </div>
+</div>
+
 
   <!-- ================= APP HEADER ================= -->
   <header class="sticky top-0 z-30 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex justify-between items-center">
@@ -1115,6 +1131,80 @@ window.addEventListener('appinstalled', () => {
   const installBtn = document.getElementById('btn-install-app');
   if (installBtn) installBtn.classList.add('hidden');
 });
+
+        // Hard Reset function to clear stuck keys/salts
+function resetVault() {
+  if (confirm("Resetting will erase all locally stored vault data on this site so you can set a brand new PIN. Proceed?")) {
+    localStorage.clear();
+    sessionStorage.clear();
+    
+    // Clear IndexedDB store
+    const req = indexedDB.deleteDatabase('LocalWealthVault');
+    req.onsuccess = req.onerror = () => {
+      alert("Vault reset. Reloading page...");
+      window.location.reload();
+    };
+  }
+}
+
+// Updated Auth Handler with On-Screen Diagnostic Error Feedback
+async function handleAuth() {
+  const pinInput = document.getElementById('pin-input');
+  const errEl = document.getElementById('auth-error');
+  const pin = pinInput ? pinInput.value.trim() : '';
+
+  if (errEl) errEl.classList.add('hidden');
+
+  if (!pin) {
+    if (errEl) {
+      errEl.textContent = "Please enter your PIN.";
+      errEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  const saltHex = localStorage.getItem('wealth_vault_salt');
+
+  // Case 1: First-time setup on this domain
+  if (!saltHex) {
+    try {
+      const newSalt = window.crypto.getRandomValues(new Uint8Array(16));
+      const saltString = Array.from(newSalt).map(b => b.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem('wealth_vault_salt', saltString);
+      sessionStorage.setItem('current_pin', pin);
+      
+      alert("Master PIN created! Vault initialized.");
+      window.location.reload();
+    } catch (e) {
+      if (errEl) {
+        errEl.textContent = "Initialization failed: " + e.message;
+        errEl.classList.remove('hidden');
+      }
+    }
+    return;
+  }
+
+  // Case 2: Unlocking existing vault
+  try {
+    sessionStorage.setItem('current_pin', pin);
+    
+    // Attempt to load/decrypt database using current PIN
+    if (typeof loadAppData === 'function') {
+      await loadAppData(); 
+    }
+
+    // Hide lock screen on success
+    document.getElementById('lock-screen').classList.add('hidden');
+  } catch (err) {
+    console.error("Auth error:", err);
+    sessionStorage.removeItem('current_pin');
+    if (errEl) {
+      errEl.textContent = "Incorrect PIN or decryption failed.";
+      errEl.classList.remove('hidden');
+    }
+  }
+}
+        
 
   </script>
 </body>
