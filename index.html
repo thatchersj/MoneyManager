@@ -944,7 +944,7 @@
       $('edit-acc-id').value = acc.id;
       $('modal-account-title').textContent = 'Edit Account';
       $('btn-delete-account').classList.remove('hidden');$('acc-name').value = acc.name || '';
-      $('acc-institution').value = acc.institution \vert{}\vert{} '';$('acc-type').value = acc.type || 'CURRENT';
+      $('acc-institution').value = acc.institution || '';$('acc-type').value = acc.type || 'CURRENT';
       renderAccountTagSelector(acc.tagIds || []);
       $('modal-account').classList.remove('hidden');
     }
