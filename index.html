@@ -426,6 +426,7 @@
     let lineChartInstance = null;
     let donutChartInstance = null;
     let selectedTimeframe = 'MAX';
+    let currentPin = null;
 
     const $ = (id) => document.getElementById(id);
 
@@ -485,19 +486,94 @@
           $('btn-unlock').textContent = 'Unlock with PIN';
         }
 
-        // This build deliberately does not persist the PIN for biometric auto-unlock.
-        // WebAuthn authentication alone cannot reproduce the AES key without a safe
-        // wrapped-key design or server component.
-        $('btn-bio-login')?.classList.add('hidden');
+        const bioConfigured = localStorage.getItem('wealth_bio_enabled') === 'true'
+          && localStorage.getItem('wealth_bio_cred_id')
+          && localStorage.getItem('wealth_bio_prf_salt')
+          && localStorage.getItem('wealth_bio_wrapped_pin');
+
+        const bioLogin = $('btn-bio-login');
+        if (bioLogin) {
+          bioLogin.classList.toggle('hidden', !bioConfigured);
+        }
+
         const bioToggle = $('btn-toggle-bio');
         if (bioToggle) {
-          bioToggle.textContent = 'Info';
-          bioToggle.className = 'bg-slate-700 hover:bg-slate-600 text-white text-xs px-3 py-1.5 rounded-xl font-medium';
+          bioToggle.textContent = bioConfigured ? 'Re-enable' : 'Enable';
+          bioToggle.className = 'bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-xl font-medium';
         }
       } catch (err) {
         console.error(err);
         showAuthError('Could not initialize local storage: ' + (err.message || err));
       }
+    }
+
+    function bytesToB64(bytes) {
+      return btoa(String.fromCharCode(...new Uint8Array(bytes)));
+    }
+
+    function b64ToBytes(value) {
+      return Uint8Array.from(atob(value), c => c.charCodeAt(0));
+    }
+
+    async function importPrfAesKey(prfOutput) {
+      return crypto.subtle.importKey(
+        'raw',
+        prfOutput,
+        { name: 'AES-GCM' },
+        false,
+        ['encrypt', 'decrypt']
+      );
+    }
+
+    async function wrapPinWithPrf(pin, prfOutput) {
+      const key = await importPrfAesKey(prfOutput);
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ciphertext = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        key,
+        new TextEncoder().encode(pin)
+      );
+      return JSON.stringify({
+        iv: bytesToB64(iv),
+        ciphertext: bytesToB64(ciphertext)
+      });
+    }
+
+    async function unwrapPinWithPrf(wrappedJson, prfOutput) {
+      const wrapped = JSON.parse(wrappedJson);
+      const key = await importPrfAesKey(prfOutput);
+      const plaintext = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: b64ToBytes(wrapped.iv) },
+        key,
+        b64ToBytes(wrapped.ciphertext)
+      );
+      return new TextDecoder().decode(plaintext);
+    }
+
+    async function unlockWithPin(pin) {
+      let salt = localStorage.getItem('wealth_vault_salt');
+
+      if (!salt) {
+        salt = await vault.deriveKey(pin);
+        appState = defaultState();
+        await vault.save('app_data', appState);
+        localStorage.setItem('wealth_vault_salt', salt);
+      } else {
+        await vault.deriveKey(pin, salt);
+        const loaded = await vault.load('app_data');
+        appState = loaded && Array.isArray(loaded.accounts) && Array.isArray(loaded.tags) && Array.isArray(loaded.snapshots)
+          ? loaded
+          : defaultState();
+
+        if (!appState.tags.some(t => t.isSystem || t.id === 'tag_nw')) {
+          appState.tags.unshift(defaultState().tags[0]);
+          await vault.save('app_data', appState);
+        }
+      }
+
+      currentPin = pin;
+      sessionStorage.setItem('wealth_unlocked', 'true');
+      showApp();
     }
 
     window.handleAuth = async function handleAuth() {
@@ -510,30 +586,10 @@
       }
 
       try {
-        let salt = localStorage.getItem('wealth_vault_salt');
-
-        if (!salt) {
-          salt = await vault.deriveKey(pin);
-          appState = defaultState();
-          await vault.save('app_data', appState);
-          localStorage.setItem('wealth_vault_salt', salt);
-        } else {
-          await vault.deriveKey(pin, salt);
-          const loaded = await vault.load('app_data');
-          appState = loaded && Array.isArray(loaded.accounts) && Array.isArray(loaded.tags) && Array.isArray(loaded.snapshots)
-            ? loaded
-            : defaultState();
-
-          if (!appState.tags.some(t => t.isSystem || t.id === 'tag_nw')) {
-            appState.tags.unshift(defaultState().tags[0]);
-            await vault.save('app_data', appState);
-          }
-        }
-
-        sessionStorage.setItem('wealth_unlocked', 'true');
-        showApp();
+        await unlockWithPin(pin);
       } catch (err) {
         console.error('Unlock failed:', err);
+        currentPin = null;
         vault.lock();
         sessionStorage.removeItem('wealth_unlocked');
         showAuthError('Incorrect PIN or the encrypted vault could not be opened.');
@@ -541,6 +597,7 @@
     };
 
     window.lockVault = function lockVault() {
+      currentPin = null;
       vault.lock();
       sessionStorage.removeItem('wealth_unlocked');
       showLock();
@@ -553,9 +610,12 @@
       try { localStorage.removeItem('wealth_vault_salt'); } catch (_) {}
       try { localStorage.removeItem('wealth_bio_enabled'); } catch (_) {}
       try { localStorage.removeItem('wealth_bio_cred_id'); } catch (_) {}
+      try { localStorage.removeItem('wealth_bio_prf_salt'); } catch (_) {}
+      try { localStorage.removeItem('wealth_bio_wrapped_pin'); } catch (_) {}
       try { localStorage.removeItem('wealth_bio_pin'); } catch (_) {}
       try { sessionStorage.clear(); } catch (_) {}
 
+      currentPin = null;
       try {
         vault.lock();
         if (vault.db) {
@@ -571,14 +631,146 @@
       }
     };
 
-    window.registerBiometrics = function registerBiometrics() {
-      alert(
-        'Biometric unlock is disabled in this repaired build because the previous implementation stored the PIN in browser storage. ' +
-        'PIN unlock remains fully encrypted with AES-GCM. A secure biometric version needs a wrapped encryption key design.'
-      );
+    window.registerBiometrics = async function registerBiometrics() {
+      if (!window.isSecureContext) {
+        alert('Biometric unlock requires HTTPS (or http://localhost).');
+        return;
+      }
+      if (!window.PublicKeyCredential || !navigator.credentials) {
+        alert('WebAuthn biometrics are not supported by this browser.');
+        return;
+      }
+      if (!currentPin) {
+        alert('Unlock the vault with your PIN first, then enable biometrics from Settings.');
+        return;
+      }
+
+      try {
+        const challenge = crypto.getRandomValues(new Uint8Array(32));
+        const userId = crypto.getRandomValues(new Uint8Array(32));
+        const prfSalt = crypto.getRandomValues(new Uint8Array(32));
+
+        const credential = await navigator.credentials.create({
+          publicKey: {
+            challenge,
+            rp: { name: 'Wealth Tracker' },
+            user: {
+              id: userId,
+              name: 'vault-owner',
+              displayName: 'Vault Owner'
+            },
+            pubKeyCredParams: [
+              { type: 'public-key', alg: -7 },
+              { type: 'public-key', alg: -257 }
+            ],
+            authenticatorSelection: {
+              authenticatorAttachment: 'platform',
+              residentKey: 'preferred',
+              userVerification: 'required'
+            },
+            timeout: 60000,
+            attestation: 'none',
+            extensions: {
+              prf: { eval: { first: prfSalt } }
+            }
+          }
+        });
+
+        if (!credential) throw new Error('No credential was created.');
+
+        const credId = new Uint8Array(credential.rawId);
+        let prfOutput = credential.getClientExtensionResults?.().prf?.results?.first || null;
+
+        // Most browsers expose only prf.enabled during registration, so perform
+        // one authenticated assertion to obtain the actual PRF output.
+        if (!prfOutput) {
+          const assertion = await navigator.credentials.get({
+            publicKey: {
+              challenge: crypto.getRandomValues(new Uint8Array(32)),
+              allowCredentials: [{ type: 'public-key', id: credId }],
+              userVerification: 'required',
+              timeout: 60000,
+              extensions: {
+                prf: { eval: { first: prfSalt } }
+              }
+            }
+          });
+          prfOutput = assertion?.getClientExtensionResults?.().prf?.results?.first || null;
+        }
+
+        if (!prfOutput) {
+          throw new Error('This browser/authenticator does not support WebAuthn PRF, which is required for secure biometric vault unlock.');
+        }
+
+        const wrappedPin = await wrapPinWithPrf(currentPin, prfOutput);
+        localStorage.setItem('wealth_bio_cred_id', bytesToB64(credId));
+        localStorage.setItem('wealth_bio_prf_salt', bytesToB64(prfSalt));
+        localStorage.setItem('wealth_bio_wrapped_pin', wrappedPin);
+        localStorage.setItem('wealth_bio_enabled', 'true');
+        localStorage.removeItem('wealth_bio_pin');
+
+        const loginBtn = $('btn-bio-login');
+        if (loginBtn) loginBtn.classList.remove('hidden');
+        const toggle = $('btn-toggle-bio');
+        if (toggle) toggle.textContent = 'Re-enable';
+
+        alert('Biometric unlock is enabled on this device.');
+      } catch (err) {
+        console.error('Biometric setup failed:', err);
+        alert('Biometric setup failed: ' + (err.message || err));
+      }
     };
 
-    window.handleBiometricAuth = window.registerBiometrics;
+    window.handleBiometricAuth = async function handleBiometricAuth() {
+      showAuthError('');
+
+      if (!window.isSecureContext) {
+        showAuthError('Biometric unlock requires HTTPS (or http://localhost).');
+        return;
+      }
+
+      const credB64 = localStorage.getItem('wealth_bio_cred_id');
+      const prfSaltB64 = localStorage.getItem('wealth_bio_prf_salt');
+      const wrappedPin = localStorage.getItem('wealth_bio_wrapped_pin');
+
+      if (!credB64 || !prfSaltB64 || !wrappedPin) {
+        showAuthError('Biometric unlock is not configured on this device. Unlock with PIN and enable it in Settings.');
+        return;
+      }
+
+      try {
+        const assertion = await navigator.credentials.get({
+          publicKey: {
+            challenge: crypto.getRandomValues(new Uint8Array(32)),
+            allowCredentials: [{
+              type: 'public-key',
+              id: b64ToBytes(credB64)
+            }],
+            userVerification: 'required',
+            timeout: 60000,
+            extensions: {
+              prf: { eval: { first: b64ToBytes(prfSaltB64) } }
+            }
+          }
+        });
+
+        const prfOutput = assertion?.getClientExtensionResults?.().prf?.results?.first;
+        if (!prfOutput) {
+          throw new Error('This browser did not return the biometric PRF secret.');
+        }
+
+        const pin = await unwrapPinWithPrf(wrappedPin, prfOutput);
+        if (!/^\d{4,8}$/.test(pin)) throw new Error('Stored biometric unlock data is invalid.');
+
+        await unlockWithPin(pin);
+      } catch (err) {
+        console.error('Biometric login failed:', err);
+        currentPin = null;
+        vault.lock();
+        sessionStorage.removeItem('wealth_unlocked');
+        showAuthError('Biometric unlock failed. Use your PIN, or re-enable biometrics in Settings.');
+      }
+    };
 
     async function persistState() {
       await vault.save('app_data', appState);
