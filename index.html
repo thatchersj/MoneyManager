@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#0f172a">
+  <title>Wealth Tracker</title>
+  
+  <!-- Web App Manifest -->
+<link rel="manifest" href="manifest.json">
+
+
+  <!-- Tailwind CSS & Chart.js CDNs -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body { -webkit-tap-highlight-color: transparent; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
+
+  <!-- ================= UNLOCK / SETUP SCREEN ================= -->
+  <div id="auth-screen" class="fixed inset-0 z-50 bg-slate-900 flex flex-col justify-center items-center p-6">
+    <div class="w-full max-w-sm text-center">
+      <div class="w-20 h-20 bg-indigo-600/20 text-indigo-400 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-inner border border-indigo-500/30">
+        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+      </div>
+      <h1 class="text-2xl font-bold mb-2 text-white" id="auth-title">Unlock Vault</h1>
+      <p class="text-slate-400 text-sm mb-6" id="auth-desc">Enter PIN or use biometrics to decrypt local data.</p>
+      
+      <div class="space-y-3">
+        <input type="password" id="pin-input" maxlength="8" inputmode="numeric" placeholder="••••" class="w-full text-center text-3xl tracking-widest bg-slate-800 border border-slate-700 rounded-2xl py-4 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-white placeholder-slate-600">
+        
+        <button id="auth-btn" onclick="handleAuth()" class="w-full bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-semibold py-4 rounded-2xl transition shadow-lg shadow-indigo-600/30">Unlock with PIN</button>
+
+        <!-- Biometrics Button (Shown if enabled) -->
+        <button id="bio-auth-btn" onclick="handleBiometricAuth()" class="w-full bg-slate-800 border border-slate-700 hover:bg-slate-750 text-indigo-400 font-medium py-3.5 rounded-2xl transition hidden flex items-center justify-center space-x-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457-.315-2.84-.873-4.085"/></svg>
+          <span>Use Fingerprint / Face ID</span>
+        </button>
+      </div>
+      <p id="auth-error" class="text-rose-400 text-xs mt-4 hidden">Authentication failed. Key mismatch.</p>
+    </div>
+  </div>
+
+  <!-- ================= APP HEADER ================= -->
+  <header class="sticky top-0 z-30 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex justify-between items-center">
+    <div class="flex items-center space-x-2">
+      <div class="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-sm">W</div>
+      <span class="font-bold text-lg text-white">Wealth</span>
+    </div>
+    <div class="flex items-center space-x-2">
+      <button onclick="openSettingsModal()" class="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      </button>
+      <button onclick="lockVault()" class="p-2 text-slate-400 hover:text-rose-400 rounded-xl hover:bg-slate-800 transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= MAIN CONTENT VIEWS ================= -->
+  <main class="flex-1 pb-24 max-w-lg mx-auto w-full px-4 pt-4">
+
+    <!-- VIEW 1: DASHBOARD -->
+    <section id="view-dashboard" class="space-y-6">
+      <!-- Net Worth Hero Card -->
+      <div id="hero-networth-card" class="bg-gradient-to-br from-indigo-900/60 to-slate-800 border border-indigo-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+        <div class="flex justify-between items-start">
+          <span class="text-xs font-semibold uppercase tracking-wider text-indigo-300">Net Worth</span>
+          <span class="text-xs text-slate-400 bg-slate-900/60 px-2.5 py-1 rounded-full border border-slate-700/50" id="hero-account-count">0 Accounts</span>
+        </div>
+        <div class="mt-3">
+          <div class="text-4xl font-extrabold text-white tracking-tight" id="hero-networth-amount">£0.00</div>
+        </div>
+      </div>
+
+      <!-- Tag Summary Horizontal Scroll Cards -->
+      <div>
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Dashboard Tags</h2>
+        </div>
+        <div id="dashboard-tag-cards" class="flex space-x-3 overflow-x-auto no-scrollbar pb-1"></div>
+      </div>
+
+      <!-- Quick Action FAB Button -->
+      <button onclick="openSnapshotModal()" class="w-full bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-medium py-3.5 rounded-2xl transition flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/25">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        <span>Record Balance Update</span>
+      </button>
+
+      <!-- Recent Account Ledger -->
+      <div>
+        <div class="flex justify-between items-center mb-3">
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Accounts</h2>
+          <button onclick="openAddAccountModal()" class="text-xs text-indigo-400 font-medium hover:underline">+ Add Account</button>
+        </div>
+        <div id="dashboard-accounts-list" class="space-y-3"></div>
+      </div>
+    </section>
+
+    <!-- VIEW 2: ANALYTICS -->
+    <section id="view-analytics" class="space-y-6 hidden">
+      <div class="bg-slate-800 border border-slate-700/60 rounded-3xl p-5 shadow-lg">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-sm font-semibold text-slate-200">Balance History</h2>
+          <div class="flex bg-slate-900 p-1 rounded-xl text-xs space-x-1">
+            <button onclick="setChartTimeframe('1M')" class="tf-btn px-2.5 py-1 rounded-lg text-slate-400 font-medium hover:text-white" data-tf="1M">1M</button>
+            <button onclick="setChartTimeframe('6M')" class="tf-btn px-2.5 py-1 rounded-lg text-slate-400 font-medium hover:text-white" data-tf="6M">6M</button>
+            <button onclick="setChartTimeframe('1Y')" class="tf-btn px-2.5 py-1 rounded-lg text-slate-400 font-medium hover:text-white" data-tf="1Y">1Y</button>
+            <button onclick="setChartTimeframe('MAX')" class="tf-btn px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-medium" data-tf="MAX">MAX</button>
+          </div>
+        </div>
+        <div class="h-64">
+          <canvas id="lineChart"></canvas>
+        </div>
+      </div>
+
+      <div class="bg-slate-800 border border-slate-700/60 rounded-3xl p-5 shadow-lg">
+        <h2 class="text-sm font-semibold text-slate-200 mb-4">Allocation by Tag</h2>
+        <div class="h-56">
+          <canvas id="donutChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ================= BOTTOM NAVIGATION ================= -->
+  <nav class="fixed bottom-0 left-0 right-0 z-30 bg-slate-900/90 backdrop-blur-md border-t border-slate-800 py-2 px-8 flex justify-around">
+    <button onclick="switchTab('dashboard')" id="nav-dashboard" class="flex flex-col items-center space-y-1 text-indigo-400">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+      <span class="text-[10px] font-medium">Dashboard</span>
+    </button>
+    <button onclick="switchTab('analytics')" id="nav-analytics" class="flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-300">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z"/></svg>
+      <span class="text-[10px] font-medium">Analytics</span>
+    </button>
+  </nav>
+
+  <!-- ================= MODALS ================= -->
+
+  <!-- Modal 1: Add/Edit Account -->
+  <div id="modal-account" class="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-slate-800 border border-slate-700/80 rounded-t-3xl sm:rounded-3xl w-full max-w-md p-6 space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 id="modal-account-title" class="text-lg font-bold text-white">Add Account</h3>
+        <button id="btn-delete-account" onclick="deleteCurrentAccount()" class="text-rose-400 hover:text-rose-300 text-xs font-semibold hidden flex items-center space-x-1">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          <span>Delete</span>
+        </button>
+      </div>
+
+      <input type="hidden" id="edit-acc-id" value="">
+
+      <div class="space-y-3 text-sm">
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">Account Name</label>
+          <input id="acc-name" type="text" placeholder="e.g., Main Monzo" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">Institution / Location</label>
+          <input id="acc-institution" type="text" placeholder="e.g., Monzo Bank" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">Account Type</label>
+          <select id="acc-type" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+            <option value="CURRENT">Current Account</option>
+            <option value="SAVINGS">Savings</option>
+            <option value="ISA_CASH">Cash ISA</option>
+            <option value="ISA_STOCKS">Stocks & Shares ISA</option>
+            <option value="PREMIUM_BONDS">Premium Bonds</option>
+            <option value="PENSION">Pension</option>
+            <option value="MORTGAGE">Mortgage (Liability)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">Tags</label>
+          <div id="acc-tags-selector" class="flex flex-wrap gap-2 pt-1"></div>
+        </div>
+      </div>
+      <div class="flex space-x-3 pt-2">
+        <button onclick="closeAddAccountModal()" class="w-1/2 bg-slate-700 hover:bg-slate-600 text-white font-medium py-3 rounded-xl">Cancel</button>
+        <button onclick="saveAccount()" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 rounded-xl">Save Account</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Record Snapshot -->
+  <div id="modal-snapshot" class="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-slate-800 border border-slate-700/80 rounded-t-3xl sm:rounded-3xl w-full max-w-md p-6 space-y-4">
+      <h3 class="text-lg font-bold text-white">Record Balance Update</h3>
+      <div class="space-y-3 text-sm">
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">Select Account</label>
+          <select id="snap-account-id" onchange="updateSnapshotMathPreview()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500"></select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-400 text-xs mb-1">Money In since update</label>
+            <input id="snap-money-in" type="number" step="0.01" value="0.00" oninput="updateSnapshotMathPreview()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-slate-400 text-xs mb-1">Money Out since update</label>
+            <input id="snap-money-out" type="number" step="0.01" value="0.00" oninput="updateSnapshotMathPreview()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+          </div>
+        </div>
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">New Total Balance</label>
+          <input id="snap-new-balance" type="number" step="0.01" placeholder="0.00" oninput="updateSnapshotMathPreview()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white font-bold text-lg focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div class="bg-slate-900/80 border border-slate-700/50 rounded-2xl p-4 text-xs space-y-1">
+          <div class="flex justify-between text-slate-400">
+            <span>Previous Balance:</span>
+            <span id="math-prev">£0.00</span>
+          </div>
+          <div class="flex justify-between text-slate-400">
+            <span>Expected Balance:</span>
+            <span id="math-expected">£0.00</span>
+          </div>
+          <div class="flex justify-between font-semibold pt-1 border-t border-slate-800">
+            <span class="text-slate-300">Variance (Growth/Interest):</span>
+            <span id="math-variance" class="text-emerald-400">£0.00</span>
+          </div>
+        </div>
+      </div>
+      <div class="flex space-x-3 pt-2">
+        <button onclick="closeSnapshotModal()" class="w-1/2 bg-slate-700 hover:bg-slate-600 text-white font-medium py-3 rounded-xl">Cancel</button>
+        <button onclick="saveSnapshot()" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 rounded-xl">Save Snapshot</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3: Settings & Security -->
+  <div id="modal-settings" class="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-slate-800 border border-slate-700/80 rounded-t-3xl sm:rounded-3xl w-full max-w-md p-6 space-y-5 max-h-[85vh] overflow-y-auto">
+      <h3 class="text-lg font-bold text-white">Settings & Tags</h3>
+      
+      <!-- Biometric Setup -->
+      <div class="bg-slate-900 border border-slate-700/60 p-4 rounded-2xl space-y-2">
+        <div class="flex justify-between items-center">
+          <div>
+            <div class="text-xs font-semibold text-white">Biometric Unlock</div>
+            <div class="text-[10px] text-slate-400">Fingerprint or Face Unlock</div>
+          </div>
+          <button id="btn-toggle-bio" onclick="registerBiometrics()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-xl font-medium">Enable</button>
+        </div>
+      </div>
+
+      <!-- Create Tag -->
+      <div class="space-y-3">
+        <h4 class="text-xs font-semibold uppercase text-slate-400">Create Tag</h4>
+        <div class="flex space-x-2">
+          <input id="new-tag-name" type="text" placeholder="Tag Name" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-sm text-white focus:outline-none">
+          <input id="new-tag-color" type="color" value="#3b82f6" class="w-10 h-10 rounded-xl border border-slate-700 bg-slate-900 cursor-pointer">
+          <button onclick="addNewTag()" class="bg-indigo-600 text-white text-xs px-4 rounded-xl font-medium">Add</button>
+        </div>
+      </div>
+
+      <!-- Manage Tags -->
+      <div class="space-y-2">
+        <h4 class="text-xs font-semibold uppercase text-slate-400">Manage Tags</h4>
+        <div id="settings-tags-list" class="space-y-2"></div>
+      </div>
+
+      <!-- Backup / Restore -->
+      <div class="space-y-2 pt-3 border-t border-slate-700">
+        <h4 class="text-xs font-semibold uppercase text-slate-400">Data Management</h4>
+        <div class="flex space-x-2">
+          <button onclick="exportData()" class="w-1/2 border border-slate-600 hover:bg-slate-700 text-slate-200 text-xs py-2.5 rounded-xl font-medium">Export Backup</button>
+          <button onclick="document.getElementById('import-file').click()" class="w-1/2 border border-slate-600 hover:bg-slate-700 text-slate-200 text-xs py-2.5 rounded-xl font-medium">Import Backup</button>
+          <input type="file" id="import-file" onchange="importData(event)" class="hidden" accept=".json">
+        </div>
+      </div>
+
+      <button onclick="closeSettingsModal()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-medium py-3 rounded-xl mt-4">Close</button>
+    </div>
+  </div>
+
+
+  <!-- ================= APPLICATION LOGIC (JS) ================= -->
+  <script>
+    /* -------------------------------------------------------------
+     * 1. SECURE STORAGE ENGINE (Web Crypto AES-256 + IndexedDB)
+     * ------------------------------------------------------------- */
+    class SecureVault {
+      constructor() {
+        this.dbName = "LocalWealthVault";
+        this.db = null;
+        this.cryptoKey = null;
+      }
+
+      async init() {
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open(this.dbName, 1);
+          req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains("store")) {
+              db.createObjectStore("store", { keyPath: "id" });
+            }
+          };
+          req.onsuccess = (e) => { this.db = e.target.result; resolve(); };
+          req.onerror = (e) => reject(e.target.error);
+        });
+      }
+
+      async deriveKey(pin, saltBase64 = null) {
+        const enc = new TextEncoder();
+        let salt = saltBase64 ? Uint8Array.from(atob(saltBase64), c => c.charCodeAt(0)) : window.crypto.getRandomValues(new Uint8Array(16));
+        const baseKey = await window.crypto.subtle.importKey("raw", enc.encode(pin), { name: "PBKDF2" }, false, ["deriveKey"]);
+        this.cryptoKey = await window.crypto.subtle.deriveKey(
+          { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+          baseKey,
+          { name: "AES-GCM", length: 256 },
+          false,
+          ["encrypt", "decrypt"]
+        );
+        return btoa(String.fromCharCode(...salt));
+      }
+
+      async save(key, data) {
+        if (!this.cryptoKey) throw new Error("Vault locked");
+        const enc = new TextEncoder();
+        const iv = window.crypto.getRandomValues(new Uint8Array(12));
+        const ciphertext = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv }, this.cryptoKey, enc.encode(JSON.stringify(data)));
+        const record = {
+          id: key,
+          iv: btoa(String.fromCharCode(...iv)),
+          payload: btoa(String.fromCharCode(...new Uint8Array(ciphertext)))
+        };
+        return new Promise((resolve, reject) => {
+          const tx = this.db.transaction("store", "readwrite");
+          tx.objectStore("store").put(record);
+          tx.oncomplete = () => resolve();
+          tx.onerror = (e) => reject(e.target.error);
+        });
+      }
+
+      async load(key) {
+        if (!this.cryptoKey) throw new Error("Vault locked");
+        const record = await new Promise((resolve, reject) => {
+          const tx = this.db.transaction("store", "readonly");
+          const req = tx.objectStore("store").get(key);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = (e) => reject(e.target.error);
+        });
+        if (!record) return null;
+        const iv = Uint8Array.from(atob(record.iv), c => c.charCodeAt(0));
+        const ciphertext = Uint8Array.from(atob(record.payload), c => c.charCodeAt(0));
+        const decrypted = await window.crypto.subtle.decrypt({ name: "AES-GCM", iv }, this.cryptoKey, ciphertext);
+        return JSON.parse(new TextDecoder().decode(decrypted));
+      }
+
+      lock() { this.cryptoKey = null; }
+    }
+
+    const vault = new SecureVault();
+
+    /* -------------------------------------------------------------
+     * 2. GLOBAL APP STATE & INITIALIZATION
+     * ------------------------------------------------------------- */
+    let appState = { accounts: [], tags: [], snapshots: [] };
+    let lineChartInstance = null;
+    let donutChartInstance = null;
+    let selectedTimeframe = 'MAX';
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      await vault.init();
+      const salt = localStorage.getItem('wealth_vault_salt');
+      if (!salt) {
+        document.getElementById('auth-title').textContent = "Create Master PIN";
+        document.getElementById('auth-desc').textContent = "Set a PIN to encrypt your local financial vault.";
+        document.getElementById('auth-btn').textContent = "Create Vault";
+      }
+
+      // Check if biometric unlock is enabled
+      if (localStorage.getItem('wealth_bio_enabled') === 'true' && window.PublicKeyCredential) {
+        document.getElementById('bio-auth-btn').classList.remove('hidden');
+      }
+    });
+
+    async function handleAuth() {
+      const pin = document.getElementById('pin-input').value;
+      if (pin.length < 4) return alert("PIN must be at least 4 digits.");
+
+      let salt = localStorage.getItem('wealth_vault_salt');
+      document.getElementById('auth-error').classList.add('hidden');
+
+      try {
+        if (!salt) {
+          salt = await vault.deriveKey(pin);
+          localStorage.setItem('wealth_vault_salt', salt);
+          appState.tags.push({ id: 'tag_nw', name: 'Net Worth', color: '#6366f1', showOnDashboard: true, isSystem: true });
+          await vault.save('app_data', appState);
+        } else {
+          await vault.deriveKey(pin, salt);
+          const loadedData = await vault.load('app_data');
+          if (loadedData) appState = loadedData;
+        }
+
+        // Cache PIN in memory session if biometrics are used
+        sessionStorage.setItem('current_pin', pin);
+
+        document.getElementById('auth-screen').classList.add('hidden');
+        document.getElementById('pin-input').value = '';
+        renderDashboard();
+      } catch (e) {
+        document.getElementById('auth-error').classList.remove('hidden');
+      }
+    }
+
+    /* -------------------------------------------------------------
+     * WEBAUTHN BIOMETRIC IMPLEMENTATION
+     * ------------------------------------------------------------- */
+    async function registerBiometrics() {
+  if (!window.isSecureContext) {
+    return alert("Biometrics require a secure context (HTTPS or http://localhost).\n\nIf you opened this file directly (file://), please run it using a local server like VS Code Live Server or Python http.server.");
+  }
+
+  if (!window.PublicKeyCredential) {
+    return alert("Biometrics are not supported on this browser or device.");
+  }
+
+  const pin = sessionStorage.getItem('current_pin') || prompt("Re-enter master PIN to enable biometrics:");
+  if (!pin) return;
+
+  try {
+    const challenge = new Uint8Array(32);
+    window.crypto.getRandomValues(challenge);
+
+    // Build relying party configuration without forcing a static domain
+    const rpConfig = { name: "Wealth Tracker PWA" };
+    if (window.location.hostname && window.location.hostname !== "") {
+      rpConfig.id = window.location.hostname;
+    }
+
+    const credential = await navigator.credentials.create({
+      publicKey: {
+        challenge: challenge,
+        rp: rpConfig,
+        user: { id: new Uint8Array(16), name: "user", displayName: "Vault Owner" },
+        pubKeyCredParams: [
+          { type: "public-key", alg: -7 },  // ES256
+          { type: "public-key", alg: -257 } // RS256
+        ],
+        authenticatorSelection: { 
+          userVerification: "preferred",
+          authenticatorAttachment: "platform" // Triggers local Face ID/Touch ID/Windows Hello
+        },
+        timeout: 60000
+      }
+    });
+
+    if (credential) {
+      localStorage.setItem('wealth_bio_enabled', 'true');
+      localStorage.setItem('wealth_bio_pin', btoa(pin));
+      alert("Biometrics enabled successfully!");
+      
+      const bioBtn = document.getElementById('btn-toggle-bio');
+      if (bioBtn) {
+        bioBtn.textContent = "Enabled";
+        bioBtn.className = "bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-xl font-medium";
+      }
+    }
+  } catch (err) {
+    console.error("Biometric registration error:", err);
+    alert("Biometric setup failed:\n" + err.message + "\n\nEnsure you are accessing via http://localhost or HTTPS.");
+  }
+}
+
+async function handleBiometricAuth() {
+  if (!window.isSecureContext) {
+    return alert("Biometrics require HTTPS or http://localhost. Please unlock using your PIN.");
+  }
+
+  try {
+    const challenge = new Uint8Array(32);
+    window.crypto.getRandomValues(challenge);
+
+    const publicKeyOptions = {
+      challenge: challenge,
+      userVerification: "preferred"
+    };
+
+    if (window.location.hostname && window.location.hostname !== "") {
+      publicKeyOptions.rpId = window.location.hostname;
+    }
+
+    const assertion = await navigator.credentials.get({
+      publicKey: publicKeyOptions
+    });
+
+    if (assertion) {
+      const storedPin = atob(localStorage.getItem('wealth_bio_pin'));
+      document.getElementById('pin-input').value = storedPin;
+      await handleAuth();
+    }
+  } catch (err) {
+    console.error("Biometric auth error:", err);
+    const errEl = document.getElementById('auth-error');
+    if (errEl) {
+      errEl.textContent = "Biometric authentication failed. Use PIN to unlock.";
+      errEl.classList.remove('hidden');
+    }
+  }
+}
+
+    async function persistState() {
+      await vault.save('app_data', appState);
+      renderDashboard();
+    }
+
+    /* -------------------------------------------------------------
+     * 3. DASHBOARD & ACCOUNTS LOGIC
+     * ------------------------------------------------------------- */
+    function switchTab(tab) {
+      document.getElementById('view-dashboard').classList.toggle('hidden', tab !== 'dashboard');
+      document.getElementById('view-analytics').classList.toggle('hidden', tab !== 'analytics');
+
+      document.getElementById('nav-dashboard').className = tab === 'dashboard' ? 'flex flex-col items-center space-y-1 text-indigo-400' : 'flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-300';
+      document.getElementById('nav-analytics').className = tab === 'analytics' ? 'flex flex-col items-center space-y-1 text-indigo-400' : 'flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-300';
+
+      if (tab === 'analytics') renderAnalytics();
+    }
+
+    function renderDashboard() {
+      const nwTag = appState.tags.find(t => t.isSystem || t.name === 'Net Worth');
+      const nwAccounts = appState.accounts.filter(a => a.tagIds.includes(nwTag?.id));
+
+      let totalNetWorth = 0;
+      nwAccounts.forEach(acc => {
+        const latestSnap = getLatestSnapshot(acc.id);
+        if (latestSnap) {
+          totalNetWorth += acc.type === 'MORTGAGE' ? -Math.abs(latestSnap.balance) : latestSnap.balance;
+        }
+      });
+
+      document.getElementById('hero-networth-amount').textContent = formatCurrency(totalNetWorth);
+      document.getElementById('hero-account-count').textContent = `${nwAccounts.length} Accounts`;
+
+      // Render Tag Cards
+      const tagContainer = document.getElementById('dashboard-tag-cards');
+      tagContainer.innerHTML = '';
+
+      const dashboardTags = appState.tags.filter(t => t.showOnDashboard && !t.isSystem);
+      dashboardTags.forEach(tag => {
+        const tagAccs = appState.accounts.filter(a => a.tagIds.includes(tag.id));
+        let tagTotal = 0;
+        tagAccs.forEach(acc => {
+          const snap = getLatestSnapshot(acc.id);
+          if (snap) tagTotal += acc.type === 'MORTGAGE' ? -Math.abs(snap.balance) : snap.balance;
+        });
+
+        const card = document.createElement('div');
+        card.className = "flex-shrink-0 bg-slate-800 border border-slate-700/60 rounded-2xl p-4 w-40 space-y-1";
+        card.innerHTML = `
+          <div class="flex items-center space-x-1.5">
+            <span class="w-2.5 h-2.5 rounded-full" style="background-color: ${tag.color}"></span>
+            <span class="text-xs font-medium text-slate-300 truncate">${tag.name}</span>
+          </div>
+          <div class="text-lg font-bold text-white tracking-tight">${formatCurrency(tagTotal)}</div>
+          <div class="text-[10px] text-slate-400">${tagAccs.length} accounts</div>
+        `;
+        tagContainer.appendChild(card);
+      });
+
+      // Render Account List
+      const accListContainer = document.getElementById('dashboard-accounts-list');
+      accListContainer.innerHTML = '';
+
+      if (appState.accounts.length === 0) {
+        accListContainer.innerHTML = `<div class="text-center py-8 text-slate-500 text-xs">No accounts added yet. Tap "+ Add Account" to begin.</div>`;
+        return;
+      }
+
+      appState.accounts.forEach(acc => {
+        const snap = getLatestSnapshot(acc.id);
+        const bal = snap ? snap.balance : 0;
+        const tagPills = acc.tagIds.map(tid => {
+          const t = appState.tags.find(x => x.id === tid);
+          return t ? `<span class="text-[9px] px-2 py-0.5 rounded-md font-medium" style="background-color: ${t.color}20; color: ${t.color}">${t.name}</span>` : '';
+        }).join(' ');
+
+        const card = document.createElement('div');
+        card.className = "bg-slate-800 border border-slate-700/50 rounded-2xl p-4 flex justify-between items-center";
+        card.innerHTML = `
+          <div class="flex-1 pr-2">
+            <div class="flex items-center space-x-2">
+              <span class="font-semibold text-sm text-white">${acc.name}</span>
+              <button onclick="openEditAccountModal('${acc.id}')" class="text-slate-500 hover:text-indigo-400 p-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 210.3H3v-3.572L16.732 3.732z"/></svg>
+              </button>
+            </div>
+            <div class="text-xs text-slate-400">${acc.institution} • ${formatType(acc.type)}</div>
+            <div class="flex flex-wrap gap-1 mt-2">${tagPills}</div>
+          </div>
+          <div class="text-right">
+            <div class="font-bold text-base ${acc.type === 'MORTGAGE' ? 'text-rose-400' : 'text-white'}">${formatCurrency(bal)}</div>
+            <div class="text-[10px] text-slate-500">${snap ? new Date(snap.timestamp).toLocaleDateString() : 'No entries'}</div>
+          </div>
+        `;
+        accListContainer.appendChild(card);
+      });
+    }
+
+    /* -------------------------------------------------------------
+     * EDIT / DELETE ACCOUNTS
+     * ------------------------------------------------------------- */
+    function openAddAccountModal() {
+      document.getElementById('edit-acc-id').value = '';
+      document.getElementById('modal-account-title').textContent = "Add Account";
+      document.getElementById('btn-delete-account').classList.add('hidden');
+      document.getElementById('acc-name').value = '';
+      document.getElementById('acc-institution').value = '';
+      document.getElementById('acc-type').value = 'CURRENT';
+
+      renderAccountTagSelector();
+      document.getElementById('modal-account').classList.remove('hidden');
+    }
+
+    function openEditAccountModal(accountId) {
+      const acc = appState.accounts.find(a => a.id === accountId);
+      if (!acc) return;
+
+      document.getElementById('edit-acc-id').value = acc.id;
+      document.getElementById('modal-account-title').textContent = "Edit Account";
+      document.getElementById('btn-delete-account').classList.remove('hidden');
+
+      document.getElementById('acc-name').value = acc.name;
+      document.getElementById('acc-institution').value = acc.institution;
+      document.getElementById('acc-type').value = acc.type;
+
+      renderAccountTagSelector(acc.tagIds);
+      document.getElementById('modal-account').classList.remove('hidden');
+    }
+
+    function renderAccountTagSelector(selectedTagIds = []) {
+      const tagContainer = document.getElementById('acc-tags-selector');
+      tagContainer.innerHTML = '';
+
+      appState.tags.forEach(tag => {
+        const isChecked = selectedTagIds.length > 0 ? selectedTagIds.includes(tag.id) : tag.isSystem;
+        const label = document.createElement('label');
+        label.className = "flex items-center space-x-1.5 bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-xl text-xs text-slate-300 cursor-pointer";
+        label.innerHTML = `
+          <input type="checkbox" value="${tag.id}" ${isChecked ? 'checked' : ''} class="acc-tag-checkbox rounded bg-slate-800 border-slate-700 text-indigo-600 focus:ring-0">
+          <span>${tag.name}</span>
+        `;
+        tagContainer.appendChild(label);
+      });
+    }
+
+    function closeAddAccountModal() {
+      document.getElementById('modal-account').classList.add('hidden');
+    }
+
+    async function saveAccount() {
+      const editId = document.getElementById('edit-acc-id').value;
+      const name = document.getElementById('acc-name').value;
+      const institution = document.getElementById('acc-institution').value;
+      const type = document.getElementById('acc-type').value;
+      const checkedTags = Array.from(document.querySelectorAll('.acc-tag-checkbox:checked')).map(cb => cb.value);
+
+      if (!name || !institution) return alert("Please fill out Account Name and Institution.");
+
+      if (editId) {
+        // Edit existing
+        const accIndex = appState.accounts.findIndex(a => a.id === editId);
+        if (accIndex !== -1) {
+          appState.accounts[accIndex] = { ...appState.accounts[accIndex], name, institution, type, tagIds: checkedTags };
+        }
+      } else {
+        // Add new
+        appState.accounts.push({
+          id: 'acc_' + Date.now(),
+          name,
+          institution,
+          type,
+          tagIds: checkedTags
+        });
+      }
+
+      await persistState();
+      closeAddAccountModal();
+    }
+
+    async function deleteCurrentAccount() {
+      const editId = document.getElementById('edit-acc-id').value;
+      if (!editId) return;
+
+      if (confirm("Are you sure you want to delete this account and its balance history?")) {
+        appState.accounts = appState.accounts.filter(a => a.id !== editId);
+        appState.snapshots = appState.snapshots.filter(s => s.accountId !== editId);
+        await persistState();
+        closeAddAccountModal();
+      }
+    }
+
+    /* -------------------------------------------------------------
+     * SNAPSHOT MATH LOGIC
+     * ------------------------------------------------------------- */
+    function openSnapshotModal() {
+      if (appState.accounts.length === 0) return alert("Please add an account first!");
+      const select = document.getElementById('snap-account-id');
+      select.innerHTML = appState.accounts.map(a => `<option value="${a.id}">${a.name} (${a.institution})</option>`).join('');
+      
+      updateSnapshotMathPreview();
+      document.getElementById('modal-snapshot').classList.remove('hidden');
+    }
+
+    function closeSnapshotModal() {
+      document.getElementById('modal-snapshot').classList.add('hidden');
+    }
+
+    function updateSnapshotMathPreview() {
+      const accId = document.getElementById('snap-account-id').value;
+      const moneyIn = parseFloat(document.getElementById('snap-money-in').value) || 0;
+      const moneyOut = parseFloat(document.getElementById('snap-money-out').value) || 0;
+      const newBal = parseFloat(document.getElementById('snap-new-balance').value) || 0;
+
+      const latestSnap = getLatestSnapshot(accId);
+      const prevBal = latestSnap ? latestSnap.balance : 0;
+      const expected = prevBal + moneyIn - moneyOut;
+      const variance = newBal - expected;
+
+      document.getElementById('math-prev').textContent = formatCurrency(prevBal);
+      document.getElementById('math-expected').textContent = formatCurrency(expected);
+      
+      const varEl = document.getElementById('math-variance');
+      varEl.textContent = (variance >= 0 ? '+' : '') + formatCurrency(variance);
+      varEl.className = variance >= 0 ? "text-emerald-400 font-semibold" : "text-rose-400 font-semibold";
+    }
+
+    async function saveSnapshot() {
+      const accId = document.getElementById('snap-account-id').value;
+      const moneyIn = parseFloat(document.getElementById('snap-money-in').value) || 0;
+      const moneyOut = parseFloat(document.getElementById('snap-money-out').value) || 0;
+      const newBal = parseFloat(document.getElementById('snap-new-balance').value);
+
+      if (isNaN(newBal)) return alert("Please enter a valid new balance.");
+
+      const latestSnap = getLatestSnapshot(accId);
+      const prevBal = latestSnap ? latestSnap.balance : 0;
+      const expected = prevBal + moneyIn - moneyOut;
+      const variance = newBal - expected;
+
+      appState.snapshots.push({
+        id: 'snap_' + Date.now(),
+        accountId: accId,
+        timestamp: new Date().toISOString(),
+        balance: newBal,
+        moneyIn,
+        moneyOut,
+        variance
+      });
+
+      await persistState();
+      closeSnapshotModal();
+      document.getElementById('snap-new-balance').value = '';
+    }
+
+    /* -------------------------------------------------------------
+     * EDIT / DELETE TAGS & SETTINGS
+     * ------------------------------------------------------------- */
+    function openSettingsModal() {
+      renderSettingsTagsList();
+      const bioBtn = document.getElementById('btn-toggle-bio');
+      if (localStorage.getItem('wealth_bio_enabled') === 'true') {
+        bioBtn.textContent = "Enabled";
+        bioBtn.className = "bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-xl font-medium";
+      }
+      document.getElementById('modal-settings').classList.remove('hidden');
+    }
+
+    function closeSettingsModal() {
+      document.getElementById('modal-settings').classList.add('hidden');
+    }
+
+    function renderSettingsTagsList() {
+      const container = document.getElementById('settings-tags-list');
+      container.innerHTML = '';
+
+      appState.tags.forEach(tag => {
+        const item = document.createElement('div');
+        item.className = "flex justify-between items-center bg-slate-900 border border-slate-700/60 p-3 rounded-xl";
+        item.innerHTML = `
+          <div class="flex items-center space-x-2">
+            <span class="w-3 h-3 rounded-full" style="background-color: ${tag.color}"></span>
+            <span class="text-sm font-medium text-white">${tag.name}</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            ${!tag.isSystem ? `
+              <button onclick="editTag('${tag.id}')" class="text-slate-400 hover:text-indigo-400 p-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 210.3H3v-3.572L16.732 3.732z"/></svg>
+              </button>
+              <button onclick="deleteTag('${tag.id}')" class="text-slate-400 hover:text-rose-400 p-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
+            ` : ''}
+            <label class="flex items-center cursor-pointer ml-1">
+              <input type="checkbox" onchange="toggleTagDashboard('${tag.id}')" ${tag.showOnDashboard ? 'checked' : ''} ${tag.isSystem ? 'disabled' : ''} class="rounded bg-slate-800 border-slate-700 text-indigo-600 focus:ring-0">
+            </label>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    async function addNewTag() {
+      const name = document.getElementById('new-tag-name').value;
+      const color = document.getElementById('new-tag-color').value;
+
+      if (!name) return alert("Enter tag name.");
+
+      appState.tags.push({
+        id: 'tag_' + Date.now(),
+        name,
+        color,
+        showOnDashboard: true,
+        isSystem: false
+      });
+
+      await persistState();
+      document.getElementById('new-tag-name').value = '';
+      renderSettingsTagsList();
+    }
+
+    async function editTag(tagId) {
+      const tag = appState.tags.find(t => t.id === tagId);
+      if (!tag) return;
+
+      const newName = prompt("Edit Tag Name:", tag.name);
+      if (newName) {
+        tag.name = newName;
+        await persistState();
+        renderSettingsTagsList();
+      }
+    }
+
+    async function deleteTag(tagId) {
+      const tag = appState.tags.find(t => t.id === tagId);
+      if (!tag || tag.isSystem) return;
+
+      if (confirm(`Delete tag "${tag.name}"? It will be removed from all accounts.`)) {
+        appState.tags = appState.tags.filter(t => t.id !== tagId);
+        // Remove tag reference from accounts
+        appState.accounts.forEach(a => {
+          a.tagIds = a.tagIds.filter(id => id !== tagId);
+        });
+        await persistState();
+        renderSettingsTagsList();
+      }
+    }
+
+    async function toggleTagDashboard(tagId) {
+      const tag = appState.tags.find(t => t.id === tagId);
+      if (tag) {
+        tag.showOnDashboard = !tag.showOnDashboard;
+        await persistState();
+      }
+    }
+
+    async function exportData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appState));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `wealth_backup_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    async function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported.accounts && imported.tags && imported.snapshots) {
+            appState = imported;
+            await persistState();
+            alert("Backup imported successfully!");
+            closeSettingsModal();
+          }
+        } catch (err) { alert("Invalid backup file."); }
+      };
+      reader.readAsText(file);
+    }
+
+    /* -------------------------------------------------------------
+     * ANALYTICS & HELPERS
+     * ------------------------------------------------------------- */
+    function renderAnalytics() { renderLineChart(); renderDonutChart(); }
+
+    function setChartTimeframe(tf) {
+      selectedTimeframe = tf;
+      document.querySelectorAll('.tf-btn').forEach(btn => {
+        btn.className = btn.dataset.tf === tf ? "tf-btn px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-medium" : "tf-btn px-2.5 py-1 rounded-lg text-slate-400 font-medium hover:text-white";
+      });
+      renderLineChart();
+    }
+
+    function renderLineChart() {
+      const ctx = document.getElementById('lineChart').getContext('2d');
+      if (lineChartInstance) lineChartInstance.destroy();
+
+      const sortedSnaps = [...appState.snapshots].sort((a,b) => new Date(a.timestamp) - new Date(b.timestamp));
+      const now = new Date();
+      const filtered = sortedSnaps.filter(s => {
+        const d = new Date(s.timestamp);
+        if (selectedTimeframe === '1M') return (now - d) <= (30 * 24 * 60 * 60 * 1000);
+        if (selectedTimeframe === '6M') return (now - d) <= (180 * 24 * 60 * 60 * 1000);
+        if (selectedTimeframe === '1Y') return (now - d) <= (365 * 24 * 60 * 60 * 1000);
+        return true;
+      });
+
+      lineChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: filtered.map(s => new Date(s.timestamp).toLocaleDateString()),
+          datasets: [{
+            label: 'Balance', data: filtered.map(s => s.balance),
+            borderColor: '#6366f1', backgroundColor: 'rgba(99, 102, 241, 0.1)', fill: true, tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10 } } }, y: { grid: { color: '#334155' }, ticks: { color: '#64748b', font: { size: 10 } } } }
+        }
+      });
+    }
+
+    function renderDonutChart() {
+      const ctx = document.getElementById('donutChart').getContext('2d');
+      if (donutChartInstance) donutChartInstance.destroy();
+
+      const userTags = appState.tags.filter(t => !t.isSystem);
+      const labels = [], data = [], colors = [];
+
+      userTags.forEach(tag => {
+        const tagAccs = appState.accounts.filter(a => a.tagIds.includes(tag.id));
+        let sum = 0;
+        tagAccs.forEach(acc => {
+          const snap = getLatestSnapshot(acc.id);
+          if (snap && acc.type !== 'MORTGAGE') sum += snap.balance;
+        });
+
+        if (sum > 0) {
+          labels.push(tag.name); data.push(sum); colors.push(tag.color);
+        }
+      });
+
+      donutChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 11 } } } }
+        }
+      });
+    }
+
+    function getLatestSnapshot(accountId) {
+      const accSnaps = appState.snapshots.filter(s => s.accountId === accountId);
+      if (accSnaps.length === 0) return null;
+      return accSnaps.reduce((latest, current) => new Date(current.timestamp) > new Date(latest.timestamp) ? current : latest);
+    }
+
+    function formatCurrency(val) {
+      return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(val);
+    }
+
+    function formatType(type) {
+      const map = { 'CURRENT': 'Current', 'SAVINGS': 'Savings', 'ISA_CASH': 'Cash ISA', 'ISA_STOCKS': 'S&S ISA', 'PREMIUM_BONDS': 'Premium Bonds', 'PENSION': 'Pension', 'MORTGAGE': 'Mortgage' };
+      return map[type] || type;
+    }
+
+
+// 1. Register Service Worker
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js').catch(err => {
+      console.warn('Service worker registration failed:', err);
+    });
+  });
+}
+
+// 2. Handle In-App PWA Install Prompt
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  // Prevent Chrome's default mini-infobar from automatically appearing
+  e.preventDefault();
+  deferredPrompt = e;
+
+  // Show a custom "Install App" button in your UI if present
+  const installBtn = document.getElementById('btn-install-app');
+  if (installBtn) {
+    installBtn.classList.remove('hidden');
+    installBtn.addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`User response to install prompt: ${outcome}`);
+      deferredPrompt = null;
+      installBtn.classList.add('hidden');
+    });
+  }
+});
+
+// Hide button once app is successfully installed
+window.addEventListener('appinstalled', () => {
+  console.log('Wealth Tracker was installed');
+  const installBtn = document.getElementById('btn-install-app');
+  if (installBtn) installBtn.classList.add('hidden');
+});
+
+  </script>
+</body>
+</html>
