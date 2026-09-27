@@ -106,12 +106,12 @@
           </div>
         </div>
 
-        <!-- Tag Summary Horizontal Scroll Cards -->
+        <!-- Tag Summary 2-Column Grid -->
         <div>
           <div class="flex justify-between items-center mb-3">
             <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Dashboard Tags</h2>
           </div>
-          <div id="dashboard-tag-cards" class="flex space-x-3 overflow-x-auto no-scrollbar pb-1"></div>
+          <div id="dashboard-tag-cards" class="grid grid-cols-2 gap-3"></div>
         </div>
 
         <!-- Quick Action FAB Button -->
@@ -119,8 +119,10 @@
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
           <span>Record Balance Update</span>
         </button>
+      </section>
 
-        <!-- Recent Account Ledger -->
+      <!-- VIEW 2: ACCOUNTS -->
+      <section id="view-accounts" class="space-y-6 hidden">
         <div>
           <div class="flex justify-between items-center mb-3">
             <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Accounts</h2>
@@ -130,8 +132,31 @@
         </div>
       </section>
 
-      <!-- VIEW 2: ANALYTICS -->
+      <!-- VIEW 3: ANALYTICS -->
       <section id="view-analytics" class="space-y-6 hidden">
+        <!-- Filter Controls -->
+        <div class="bg-slate-800 border border-slate-700/60 rounded-3xl p-4 shadow-lg space-y-3">
+          <div class="flex justify-between items-center">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Filter Analysis</h2>
+            <button onclick="resetAnalyticsFilters()" class="text-[11px] text-indigo-400 hover:underline">Reset Filters</button>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-slate-400 text-[10px] font-semibold uppercase mb-1">By Tag</label>
+              <select id="analytics-tag-filter" onchange="onAnalyticsFilterChange('tag')" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+                <option value="ALL">All Tags</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-slate-400 text-[10px] font-semibold uppercase mb-1">By Account</label>
+              <select id="analytics-account-filter" onchange="onAnalyticsFilterChange('account')" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+                <option value="ALL">All Accounts</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Balance History Chart -->
         <div class="bg-slate-800 border border-slate-700/60 rounded-3xl p-5 shadow-lg">
           <div class="flex justify-between items-center mb-4">
             <h2 class="text-sm font-semibold text-slate-200">Balance History</h2>
@@ -147,8 +172,9 @@
           </div>
         </div>
 
+        <!-- Allocation / Breakdown Donut Chart -->
         <div class="bg-slate-800 border border-slate-700/60 rounded-3xl p-5 shadow-lg">
-          <h2 class="text-sm font-semibold text-slate-200 mb-4">Allocation by Tag</h2>
+          <h2 id="donut-chart-title" class="text-sm font-semibold text-slate-200 mb-4">Allocation by Tag</h2>
           <div class="h-56">
             <canvas id="donutChart"></canvas>
           </div>
@@ -158,10 +184,14 @@
     </main>
 
     <!-- BOTTOM NAVIGATION -->
-    <nav class="fixed bottom-0 left-0 right-0 z-30 bg-slate-900/90 backdrop-blur-md border-t border-slate-800 py-2 px-8 flex justify-around">
+    <nav class="fixed bottom-0 left-0 right-0 z-30 bg-slate-900/90 backdrop-blur-md border-t border-slate-800 py-2 px-6 flex justify-around">
       <button onclick="switchTab('dashboard')" id="nav-dashboard" class="flex flex-col items-center space-y-1 text-indigo-400">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
         <span class="text-[10px] font-medium">Dashboard</span>
+      </button>
+      <button onclick="switchTab('accounts')" id="nav-accounts" class="flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-300">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        <span class="text-[10px] font-medium">Accounts</span>
       </button>
       <button onclick="switchTab('analytics')" id="nav-analytics" class="flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-300">
         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z"/></svg>
@@ -681,8 +711,6 @@
         const credId = new Uint8Array(credential.rawId);
         let prfOutput = credential.getClientExtensionResults?.().prf?.results?.first || null;
 
-        // Most browsers expose only prf.enabled during registration, so perform
-        // one authenticated assertion to obtain the actual PRF output.
         if (!prfOutput) {
           const assertion = await navigator.credentials.get({
             publicKey: {
@@ -775,21 +803,27 @@
     async function persistState() {
       await vault.save('app_data', appState);
       renderDashboard();
+      if (!$('view-analytics').classList.contains('hidden')) {
+        renderAnalytics();
+      }
     }
 
     window.switchTab = function switchTab(tab) {
-      $('view-dashboard').classList.toggle('hidden', tab !== 'dashboard');
-      $('view-analytics').classList.toggle('hidden', tab !== 'analytics');
+      $('view-dashboard')?.classList.toggle('hidden', tab !== 'dashboard');
+      $('view-accounts')?.classList.toggle('hidden', tab !== 'accounts');
+      $('view-analytics')?.classList.toggle('hidden', tab !== 'analytics');
 
-      $('nav-dashboard').className = tab === 'dashboard'
-        ? 'flex flex-col items-center space-y-1 text-indigo-400'
-        : 'flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-300';
-
-      $('nav-analytics').className = tab === 'analytics'
-        ? 'flex flex-col items-center space-y-1 text-indigo-400'
-        : 'flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-300';
+      ['dashboard', 'accounts', 'analytics'].forEach(t => {
+        const nav = $(`nav-${t}`);
+        if (nav) {
+          nav.className = tab === t
+            ? 'flex flex-col items-center space-y-1 text-indigo-400'
+            : 'flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-300';
+        }
+      });
 
       if (tab === 'analytics') renderAnalytics();
+      if (tab === 'dashboard' || tab === 'accounts') renderDashboard();
     };
 
     function getLatestSnapshot(accountId) {
@@ -836,8 +870,7 @@
         if (snap) total += acc.type === 'MORTGAGE' ? -Math.abs(snap.balance) : Number(snap.balance);
       });
 
-      $('hero-networth-amount').textContent = formatCurrency(total);
-      $('hero-account-count').textContent = `${nwAccounts.length} Account${nwAccounts.length === 1 ? '' : 's'}`;
+      $('hero-networth-amount').textContent = formatCurrency(total);$('hero-account-count').textContent = `${nwAccounts.length} Account${nwAccounts.length === 1 ? '' : 's'}`;
 
       const tagContainer = $('dashboard-tag-cards');
       tagContainer.innerHTML = '';
@@ -850,10 +883,10 @@
         });
 
         const card = document.createElement('div');
-        card.className = 'flex-shrink-0 bg-slate-800 border border-slate-700/60 rounded-2xl p-4 w-40 space-y-1';
+        card.className = 'bg-slate-800 border border-slate-700/60 rounded-2xl p-4 space-y-1';
         card.innerHTML = `
           <div class="flex items-center space-x-1.5">
-            <span class="w-2.5 h-2.5 rounded-full" style="background-color:${escapeHtml(tag.color)}"></span>
+            <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color:${escapeHtml(tag.color)}"></span>
             <span class="text-xs font-medium text-slate-300 truncate">${escapeHtml(tag.name)}</span>
           </div>
           <div class="text-lg font-bold text-white tracking-tight">${formatCurrency(tagTotal)}</div>
@@ -862,6 +895,7 @@
       });
 
       const list = $('dashboard-accounts-list');
+      if (!list) return;
       list.innerHTML = '';
       if (!appState.accounts.length) {
         list.innerHTML = '<div class="text-center py-8 text-slate-500 text-xs">No accounts added yet. Tap "+ Add Account" to begin.</div>';
@@ -897,12 +931,9 @@
     }
 
     window.openAddAccountModal = function openAddAccountModal() {
-      $('edit-acc-id').value = '';
-      $('modal-account-title').textContent = 'Add Account';
-      $('btn-delete-account').classList.add('hidden');
-      $('acc-name').value = '';
-      $('acc-institution').value = '';
-      $('acc-type').value = 'CURRENT';
+      $('edit-acc-id').value = '';$('modal-account-title').textContent = 'Add Account';
+      $('btn-delete-account').classList.add('hidden');$('acc-name').value = '';
+      $('acc-institution').value = '';$('acc-type').value = 'CURRENT';
       renderAccountTagSelector();
       $('modal-account').classList.remove('hidden');
     };
@@ -912,10 +943,8 @@
       if (!acc) return;
       $('edit-acc-id').value = acc.id;
       $('modal-account-title').textContent = 'Edit Account';
-      $('btn-delete-account').classList.remove('hidden');
-      $('acc-name').value = acc.name || '';
-      $('acc-institution').value = acc.institution || '';
-      $('acc-type').value = acc.type || 'CURRENT';
+      $('btn-delete-account').classList.remove('hidden');$('acc-name').value = acc.name || '';
+      $('acc-institution').value = acc.institution || '';$('acc-type').value = acc.type || 'CURRENT';
       renderAccountTagSelector(acc.tagIds || []);
       $('modal-account').classList.remove('hidden');
     }
@@ -982,8 +1011,7 @@
         .map(a => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.name)} (${escapeHtml(a.institution)})</option>`)
         .join('');
       $('snap-money-in').value = '0.00';
-      $('snap-money-out').value = '0.00';
-      $('snap-new-balance').value = '';
+      $('snap-money-out').value = '0.00';$('snap-new-balance').value = '';
       updateSnapshotMathPreview();
       $('modal-snapshot').classList.remove('hidden');
     };
@@ -1003,10 +1031,8 @@
       const expected = previous + moneyIn - moneyOut;
       const variance = newBalance === null || Number.isNaN(newBalance) ? 0 : newBalance - expected;
 
-      $('math-prev').textContent = formatCurrency(previous);
-      $('math-expected').textContent = formatCurrency(expected);
-      $('math-variance').textContent = (variance >= 0 ? '+' : '') + formatCurrency(variance);
-      $('math-variance').className = variance >= 0 ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold';
+      $('math-prev').textContent = formatCurrency(previous);$('math-expected').textContent = formatCurrency(expected);
+      $('math-variance').textContent = (variance >= 0 ? '+' : '') + formatCurrency(variance);$('math-variance').className = variance >= 0 ? 'text-emerald-400 font-semibold' : 'text-rose-400 font-semibold';
     }
     window.updateSnapshotMathPreview = updateSnapshotMathPreview;
 
@@ -1189,7 +1215,67 @@
       reader.readAsText(file);
     };
 
+    function populateAnalyticsFilterOptions() {
+      const tagSelect = $('analytics-tag-filter');
+      const accSelect = $('analytics-account-filter');
+      if (!tagSelect || !accSelect) return;
+
+      const currentTagVal = tagSelect.value || 'ALL';
+      const currentAccVal = accSelect.value || 'ALL';
+
+      let tagHtml = '<option value="ALL">All Tags</option>';
+      appState.tags.forEach(t => {
+        tagHtml += `<option value="${escapeHtml(t.id)}">${escapeHtml(t.name)}</option>`;
+      });
+      tagSelect.innerHTML = tagHtml;
+      tagSelect.value = appState.tags.some(t => t.id === currentTagVal) ? currentTagVal : 'ALL';
+
+      let accHtml = '<option value="ALL">All Accounts</option>';
+      appState.accounts.forEach(a => {
+        accHtml += `<option value="${escapeHtml(a.id)}">${escapeHtml(a.name)} (${escapeHtml(a.institution)})</option>`;
+      });
+      accSelect.innerHTML = accHtml;
+      accSelect.value = appState.accounts.some(a => a.id === currentAccVal) ? currentAccVal : 'ALL';
+    }
+
+    window.onAnalyticsFilterChange = function onAnalyticsFilterChange(changedType) {
+      if (changedType === 'tag') {
+        if ($('analytics-tag-filter').value !== 'ALL') {$('analytics-account-filter').value = 'ALL';
+        }
+      } else if (changedType === 'account') {
+        if ($('analytics-account-filter').value !== 'ALL') {$('analytics-tag-filter').value = 'ALL';
+        }
+      }
+      renderAnalyticsCharts();
+    };
+
+    window.resetAnalyticsFilters = function resetAnalyticsFilters() {
+      if ($('analytics-tag-filter'))$('analytics-tag-filter').value = 'ALL';
+      if ($('analytics-account-filter'))$('analytics-account-filter').value = 'ALL';
+      renderAnalyticsCharts();
+    };
+
+    function getFilteredAccounts() {
+      const selectedTag = $('analytics-tag-filter')?.value || 'ALL';
+      const selectedAcc = $('analytics-account-filter')?.value || 'ALL';
+
+      if (selectedAcc !== 'ALL') {
+        return appState.accounts.filter(a => a.id === selectedAcc);
+      }
+
+      if (selectedTag !== 'ALL') {
+        return appState.accounts.filter(a => (a.tagIds || []).includes(selectedTag));
+      }
+
+      return appState.accounts;
+    }
+
     function renderAnalytics() {
+      populateAnalyticsFilterOptions();
+      renderAnalyticsCharts();
+    }
+
+    function renderAnalyticsCharts() {
       renderLineChart();
       renderDonutChart();
     }
@@ -1210,16 +1296,38 @@
       if (!canvas) return;
       if (lineChartInstance) lineChartInstance.destroy();
 
-      const now = Date.now();
-      const filtered = [...appState.snapshots]
-        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-        .filter(s => {
-          const age = now - new Date(s.timestamp).getTime();
-          if (selectedTimeframe === '1M') return age <= 30 * 86400000;
-          if (selectedTimeframe === '6M') return age <= 180 * 86400000;
-          if (selectedTimeframe === '1Y') return age <= 365 * 86400000;
-          return true;
+      const targetAccounts = getFilteredAccounts();
+      const targetAccountIds = new Set(targetAccounts.map(a => a.id));
+      const accountMap = new Map(targetAccounts.map(a => [a.id, a]));
+
+      const relevantSnapshots = [...appState.snapshots]
+        .filter(s => targetAccountIds.has(s.accountId))
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+      const latestBalances = {};
+      const timeSeriesPoints = [];
+
+      relevantSnapshots.forEach(s => {
+        const acc = accountMap.get(s.accountId);
+        if (!acc) return;
+        const val = acc.type === 'MORTGAGE' ? -Math.abs(s.balance) : Number(s.balance) || 0;
+        latestBalances[s.accountId] = val;
+
+        const totalSum = Object.values(latestBalances).reduce((a, b) => a + b, 0);
+        timeSeriesPoints.push({
+          timestamp: s.timestamp,
+          balance: totalSum
         });
+      });
+
+      const now = Date.now();
+      const filtered = timeSeriesPoints.filter(pt => {
+        const age = now - new Date(pt.timestamp).getTime();
+        if (selectedTimeframe === '1M') return age <= 30 * 86400000;
+        if (selectedTimeframe === '6M') return age <= 180 * 86400000;
+        if (selectedTimeframe === '1Y') return age <= 365 * 86400000;
+        return true;
+      });
 
       lineChartInstance = new Chart(canvas.getContext('2d'), {
         type: 'line',
@@ -1252,23 +1360,68 @@
       if (!canvas) return;
       if (donutChartInstance) donutChartInstance.destroy();
 
+      const selectedTag = $('analytics-tag-filter')?.value || 'ALL';
+      const selectedAcc = $('analytics-account-filter')?.value || 'ALL';
+      const titleEl = $('donut-chart-title');
+
       const labels = [];
       const data = [];
       const colors = [];
+      const defaultColors = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#f97316'];
 
-      appState.tags.filter(t => !t.isSystem).forEach(tag => {
-        const accounts = appState.accounts.filter(a => (a.tagIds || []).includes(tag.id));
-        let sum = 0;
-        accounts.forEach(acc => {
+      if (selectedAcc !== 'ALL') {
+        const acc = appState.accounts.find(a => a.id === selectedAcc);
+        if (acc) {
+          if (titleEl) titleEl.textContent = `Tag Breakdown: ${acc.name}`;
           const snap = getLatestSnapshot(acc.id);
-          if (snap && acc.type !== 'MORTGAGE') sum += Number(snap.balance) || 0;
-        });
-        if (sum > 0) {
-          labels.push(tag.name);
-          data.push(sum);
-          colors.push(tag.color);
+          const val = snap ? (acc.type === 'MORTGAGE' ? Math.abs(snap.balance) : Number(snap.balance)) : 0;
+          const tags = (acc.tagIds || []).map(id => appState.tags.find(t => t.id === id)).filter(Boolean);
+          if (tags.length > 0) {
+            const portion = val / tags.length;
+            tags.forEach((t, i) => {
+              labels.push(t.name);
+              data.push(portion);
+              colors.push(t.color || defaultColors[i % defaultColors.length]);
+            });
+          } else {
+            labels.push(acc.name);
+            data.push(val);
+            colors.push('#6366f1');
+          }
         }
-      });
+      } else if (selectedTag !== 'ALL') {
+        const tag = appState.tags.find(t => t.id === selectedTag);
+        if (tag) {
+          if (titleEl) titleEl.textContent = `Account Allocation: ${tag.name}`;
+          const accounts = appState.accounts.filter(a => (a.tagIds || []).includes(tag.id));
+          accounts.forEach((acc, i) => {
+            const snap = getLatestSnapshot(acc.id);
+            if (snap && acc.type !== 'MORTGAGE') {
+              const bal = Number(snap.balance) || 0;
+              if (bal > 0) {
+                labels.push(acc.name);
+                data.push(bal);
+                colors.push(defaultColors[i % defaultColors.length]);
+              }
+            }
+          });
+        }
+      } else {
+        if (titleEl) titleEl.textContent = 'Allocation by Tag';
+        appState.tags.filter(t => !t.isSystem).forEach((tag, i) => {
+          const accounts = appState.accounts.filter(a => (a.tagIds || []).includes(tag.id));
+          let sum = 0;
+          accounts.forEach(acc => {
+            const snap = getLatestSnapshot(acc.id);
+            if (snap && acc.type !== 'MORTGAGE') sum += Number(snap.balance) || 0;
+          });
+          if (sum > 0) {
+            labels.push(tag.name);
+            data.push(sum);
+            colors.push(tag.color || defaultColors[i % defaultColors.length]);
+          }
+        });
+      }
 
       donutChartInstance = new Chart(canvas.getContext('2d'), {
         type: 'doughnut',
