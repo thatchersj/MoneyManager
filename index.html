@@ -492,6 +492,101 @@ async function handleBiometricAuth() {
 
     const assertion = await navigator.credentials.get({
       publicKey: publicKeyOptions
+async function registerBiometrics() {
+  if (!window.isSecureContext) {
+    return alert("Biometrics require HTTPS or http://localhost.");
+  }
+
+  if (!window.PublicKeyCredential) {
+    return alert("Biometrics are not supported on this device.");
+  }
+
+  const pin = sessionStorage.getItem('current_pin') || prompt("Re-enter master PIN to enable biometrics:");
+  if (!pin) return;
+
+  try {
+    const challenge = new Uint8Array(32);
+    window.crypto.getRandomValues(challenge);
+
+    const rpConfig = { name: "Wealth Tracker PWA" };
+    if (window.location.hostname && window.location.hostname !== "") {
+      rpConfig.id = window.location.hostname;
+    }
+
+    const credential = await navigator.credentials.create({
+      publicKey: {
+        challenge: challenge,
+        rp: rpConfig,
+        user: { 
+          id: Uint8Array.from([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]), 
+          name: "vault_owner", 
+          displayName: "Vault Owner" 
+        },
+        pubKeyCredParams: [
+          { type: "public-key", alg: -7 },  // ES256
+          { type: "public-key", alg: -257 } // RS256
+        ],
+        authenticatorSelection: { 
+          authenticatorAttachment: "platform",
+          residentKey: "preferred",
+          userVerification: "required"
+        },
+        timeout: 60000
+      }
+    });
+
+    if (credential) {
+      // Store the Credential ID so Android knows which key to query
+      const credIdBase64 = btoa(String.fromCharCode(...new Uint8Array(credential.rawId)));
+      localStorage.setItem('wealth_bio_cred_id', credIdBase64);
+      localStorage.setItem('wealth_bio_enabled', 'true');
+      localStorage.setItem('wealth_bio_pin', btoa(pin));
+
+      alert("Biometrics configured successfully!");
+      
+      const bioBtn = document.getElementById('btn-toggle-bio');
+      if (bioBtn) {
+        bioBtn.textContent = "Enabled";
+        bioBtn.className = "bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-xl font-medium";
+      }
+    }
+  } catch (err) {
+    console.error("Biometric registration error:", err);
+    alert("Biometric setup failed: " + err.message);
+  }
+}
+
+async function handleBiometricAuth() {
+  if (!window.isSecureContext) {
+    return alert("Biometrics require HTTPS. Please unlock using PIN.");
+  }
+
+  try {
+    const challenge = new Uint8Array(32);
+    window.crypto.getRandomValues(challenge);
+
+    const publicKeyOptions = {
+      challenge: challenge,
+      userVerification: "required"
+    };
+
+    if (window.location.hostname && window.location.hostname !== "") {
+      publicKeyOptions.rpId = window.location.hostname;
+    }
+
+    // Attach stored Credential ID so Android skips passkey search and prompts directly
+    const storedCredId = localStorage.getItem('wealth_bio_cred_id');
+    if (storedCredId) {
+      const rawId = Uint8Array.from(atob(storedCredId), c => c.charCodeAt(0));
+      publicKeyOptions.allowCredentials = [{
+        type: 'public-key',
+        id: rawId,
+        transports: ['internal']
+      }];
+    }
+
+    const assertion = await navigator.credentials.get({
+      publicKey: publicKeyOptions
     });
 
     if (assertion) {
@@ -503,11 +598,12 @@ async function handleBiometricAuth() {
     console.error("Biometric auth error:", err);
     const errEl = document.getElementById('auth-error');
     if (errEl) {
-      errEl.textContent = "Biometric authentication failed. Use PIN to unlock.";
+      errEl.textContent = "Biometric authentication failed. Use PIN.";
       errEl.classList.remove('hidden');
     }
   }
 }
+
 
     async function persistState() {
       await vault.save('app_data', appState);
