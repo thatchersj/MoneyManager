@@ -1638,18 +1638,27 @@ window.addEventListener('appinstalled', () => {
 
         // Hard Reset function to clear stuck keys/salts
 function resetVault() {
-  if (confirm("Resetting will erase all locally stored vault data on this site so you can set a brand new PIN. Proceed?")) {
+  // Use custom modal or browser prompt check
+  const choice = prompt('To erase all local vault data, type "RESET" below:');
+  if (choice !== 'RESET') return;
+
+  try {
     localStorage.clear();
+  } catch (e) { console.warn('localStorage clear failed:', e); }
+
+  try {
     sessionStorage.clear();
-    
-    // Clear IndexedDB store
+  } catch (e) { console.warn('sessionStorage clear failed:', e); }
+
+  try {
     const req = indexedDB.deleteDatabase('LocalWealthVault');
-    req.onsuccess = req.onerror = () => {
-      alert("Vault reset. Reloading page...");
-      window.location.reload();
-    };
+    req.onsuccess = req.onerror = () => location.reload();
+  } catch (e) {
+    console.warn('IndexedDB delete failed:', e);
+    location.reload();
   }
 }
+
 
 // Updated Auth Handler with On-Screen Diagnostic Error Feedback
 async function handleAuth() {
