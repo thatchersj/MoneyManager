@@ -416,56 +416,7 @@
     /* -------------------------------------------------------------
      * WEBAUTHN BIOMETRIC IMPLEMENTATION
      * ------------------------------------------------------------- */
-    async function registerBiometrics() {
-  if (!window.isSecureContext) {
-    return alert("Biometrics require a secure context (HTTPS or http://localhost).\n\nIf you opened this file directly (file://), please run it using a local server like VS Code Live Server or Python http.server.");
-  }
-
-  if (!window.PublicKeyCredential) {
-    return alert("Biometrics are not supported on this browser or device.");
-  }
-
-  const pin = sessionStorage.getItem('current_pin') || prompt("Re-enter master PIN to enable biometrics:");
-  if (!pin) return;
-
-  try {
-    const challenge = new Uint8Array(32);
-    window.crypto.getRandomValues(challenge);
-
-    // Build relying party configuration without forcing a static domain
-    const rpConfig = { name: "Wealth Tracker PWA" };
-    if (window.location.hostname && window.location.hostname !== "") {
-      rpConfig.id = window.location.hostname;
-    }
-
-    const credential = await navigator.credentials.create({
-      publicKey: {
-        challenge: challenge,
-        rp: rpConfig,
-        user: { id: new Uint8Array(16), name: "user", displayName: "Vault Owner" },
-        pubKeyCredParams: [
-          { type: "public-key", alg: -7 },  // ES256
-          { type: "public-key", alg: -257 } // RS256
-        ],
-        authenticatorSelection: { 
-          userVerification: "preferred",
-          authenticatorAttachment: "platform" // Triggers local Face ID/Touch ID/Windows Hello
-        },
-        timeout: 60000
-      }
-    });
-
-    if (credential) {
-      localStorage.setItem('wealth_bio_enabled', 'true');
-      localStorage.setItem('wealth_bio_pin', btoa(pin));
-      alert("Biometrics enabled successfully!");
-      
-      const bioBtn = document.getElementById('btn-toggle-bio');
-      if (bioBtn) {
-        bioBtn.textContent = "Enabled";
-        bioBtn.className = "bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-xl font-medium";
-      }
-    }
+    
   } catch (err) {
     console.error("Biometric registration error:", err);
     alert("Biometric setup failed:\n" + err.message + "\n\nEnsure you are accessing via http://localhost or HTTPS.");
@@ -548,62 +499,110 @@ async function registerBiometrics() {
       if (bioBtn) {
         bioBtn.textContent = "Enabled";
         bioBtn.className = "bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-xl font-medium";
+// Auto-detect biometric capability and show button on startup
+document.addEventListener('DOMContentLoaded', () => {
+  const bioEnabled = localStorage.getItem('wealth_bio_enabled') === 'true';
+  const bioBtn = document.getElementById('btn-bio-login');
+  
+  if (bioEnabled && bioBtn) {
+    bioBtn.classList.remove('hidden');
+  }
+
+  // Force service worker update on load
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').then(reg => reg.update());
+  }
+});
+
+async function registerBiometrics() {
+  if (!window.isSecureContext) {
+    return alert("Biometrics require HTTPS or http://localhost.");
+  }
+
+  const pin = sessionStorage.getItem('current_pin') || prompt("Confirm your PIN to enable biometrics:");
+  if (!pin) return;
+
+  try {
+    const challenge = new Uint8Array(32);
+    window.crypto.getRandomValues(challenge);
+
+    // Strictly extract domain name without port or path for GitHub Pages (thatchersj.github.io)
+    const hostname = window.location.hostname;
+
+    const credential = await navigator.credentials.create({
+      publicKey: {
+        challenge: challenge,
+        rp: { name: "Money Manager", id: hostname },
+        user: { 
+          id: Uint8Array.from([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]), 
+          name: "vault_owner", 
+          displayName: "Vault Owner" 
+        },
+        pubKeyCredParams: [
+          { type: "public-key", alg: -7 },  // ES256
+          { type: "public-key", alg: -257 } // RS256
+        ],
+        authenticatorSelection: { 
+          authenticatorAttachment: "platform",
+          userVerification: "required"
+        },
+        timeout: 60000
       }
+    });
+
+    if (credential) {
+      const credIdBase64 = btoa(String.fromCharCode(...new Uint8Array(credential.rawId)));
+      localStorage.setItem('wealth_bio_cred_id', credIdBase64);
+      localStorage.setItem('wealth_bio_enabled', 'true');
+      localStorage.setItem('wealth_bio_pin', btoa(pin));
+
+      alert("Biometrics enabled!");
+      const bioBtn = document.getElementById('btn-bio-login');
+      if (bioBtn) bioBtn.classList.remove('hidden');
     }
   } catch (err) {
-    console.error("Biometric registration error:", err);
+    console.error("Registration error:", err);
     alert("Biometric setup failed: " + err.message);
   }
 }
 
 async function handleBiometricAuth() {
-  if (!window.isSecureContext) {
-    return alert("Biometrics require HTTPS. Please unlock using PIN.");
+  const storedCredId = localStorage.getItem('wealth_bio_cred_id');
+  const storedBioPin = localStorage.getItem('wealth_bio_pin');
+
+  if (!storedCredId || !storedBioPin) {
+    return alert("Biometrics not set up on this domain yet. Please unlock with PIN first.");
   }
 
   try {
     const challenge = new Uint8Array(32);
     window.crypto.getRandomValues(challenge);
 
-    const publicKeyOptions = {
-      challenge: challenge,
-      userVerification: "required"
-    };
-
-    if (window.location.hostname && window.location.hostname !== "") {
-      publicKeyOptions.rpId = window.location.hostname;
-    }
-
-    // Attach stored Credential ID so Android skips passkey search and prompts directly
-    const storedCredId = localStorage.getItem('wealth_bio_cred_id');
-    if (storedCredId) {
-      const rawId = Uint8Array.from(atob(storedCredId), c => c.charCodeAt(0));
-      publicKeyOptions.allowCredentials = [{
-        type: 'public-key',
-        id: rawId,
-        transports: ['internal']
-      }];
-    }
+    const rawId = Uint8Array.from(atob(storedCredId), c => c.charCodeAt(0));
 
     const assertion = await navigator.credentials.get({
-      publicKey: publicKeyOptions
+      publicKey: {
+        challenge: challenge,
+        rpId: window.location.hostname,
+        allowCredentials: [{
+          type: 'public-key',
+          id: rawId,
+          transports: ['internal']
+        }],
+        userVerification: "required"
+      }
     });
 
     if (assertion) {
-      const storedPin = atob(localStorage.getItem('wealth_bio_pin'));
-      document.getElementById('pin-input').value = storedPin;
-      await handleAuth();
+      const pin = atob(storedBioPin);
+      document.getElementById('pin-input').value = pin;
+      await handleAuth(); // Calls your existing vault decryption/unlock logic
     }
   } catch (err) {
-    console.error("Biometric auth error:", err);
-    const errEl = document.getElementById('auth-error');
-    if (errEl) {
-      errEl.textContent = "Biometric authentication failed. Use PIN.";
-      errEl.classList.remove('hidden');
-    }
+    console.error("Biometric login failed:", err);
+    alert("Biometric verification failed. Please enter your PIN.");
   }
 }
-
 
     async function persistState() {
       await vault.save('app_data', appState);
