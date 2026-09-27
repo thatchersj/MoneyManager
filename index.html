@@ -18,142 +18,157 @@
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
+
+  <script>
+    // Unregister legacy service worker to clear stuck builds
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        for (let registration of registrations) {
+          registration.unregister();
+        }
+      });
+    }
+  </script>
 </head>
-<body class="bg-slate-900 text-slate-100 font-sans min-h-screen flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen selection:bg-indigo-500 selection:text-white">
 
-<!-- Lock Screen Container -->
-<div id="lock-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center p-4 bg-slate-900 text-white">
-  <div class="w-full max-w-sm flex flex-col items-center space-y-6">
-    <div class="w-16 h-16 bg-slate-800/80 rounded-2xl flex items-center justify-center border border-slate-700">
-      <svg class="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-      </svg>
-    </div>
+  <!-- ================= 1. LOCK SCREEN CONTAINER ================= -->
+  <div id="lock-screen" class="min-h-screen w-full flex flex-col items-center justify-center p-4 bg-slate-900 text-white">
+    <div class="w-full max-w-sm flex flex-col items-center space-y-6">
+      <div class="w-16 h-16 bg-slate-800/80 rounded-2xl flex items-center justify-center border border-slate-700">
+        <svg class="w-8 h-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        </svg>
+      </div>
 
-    <div class="text-center">
-      <h2 id="auth-title" class="text-2xl font-bold">Unlock Vault</h2>
-      <p id="auth-sub" class="text-xs text-slate-400 mt-1">Enter PIN or use biometrics to decrypt local data.</p>
-    </div>
+      <div class="text-center">
+        <h2 id="auth-title" class="text-2xl font-bold">Unlock Vault</h2>
+        <p id="auth-sub" class="text-xs text-slate-400 mt-1">Enter PIN or use biometrics to decrypt local data.</p>
+      </div>
 
-    <!-- PIN Input -->
-    <div class="w-full space-y-4">
-      <input type="password" id="pin-input" maxlength="8" placeholder="••••" 
-        class="w-full text-center text-2xl tracking-widest bg-slate-800/60 border border-slate-700 rounded-xl py-3 text-white focus:outline-none focus:border-indigo-500">
-      
-      <!-- Error Feedback -->
-      <p id="auth-error" class="text-rose-400 text-xs text-center hidden"></p>
+      <!-- PIN Input -->
+      <div class="w-full space-y-4">
+        <input type="password" id="pin-input" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="••••" 
+          onkeyup="if(event.key==='Enter') handleAuth()"
+          class="w-full text-center text-2xl tracking-widest bg-slate-800/60 border border-slate-700 rounded-xl py-3 text-white focus:outline-none focus:border-indigo-500">
+        
+        <!-- Error Feedback -->
+        <p id="auth-error" class="text-rose-400 text-xs text-center hidden"></p>
 
-      <!-- Action Buttons -->
-      <button onclick="handleAuth()" id="btn-unlock" class="w-full bg-indigo-600 hover:bg-indigo-500 font-semibold py-3 rounded-xl transition">
-        Unlock with PIN
+        <!-- Action Buttons -->
+        <button onclick="handleAuth()" id="btn-unlock" class="w-full bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 font-semibold py-3 rounded-xl transition">
+          Unlock with PIN
+        </button>
+
+        <button onclick="handleBiometricAuth()" id="btn-bio-login" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 font-medium py-3 rounded-xl transition hidden">
+          Use Fingerprint / Face ID
+        </button>
+      </div>
+
+      <!-- Emergency Reset Option -->
+      <button onclick="resetVault()" class="text-xs text-slate-500 hover:text-rose-400 underline pt-4">
+        Forgot PIN or clear local vault?
       </button>
-
-      <button onclick="handleBiometricAuth()" id="btn-bio-login" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 font-medium py-3 rounded-xl transition hidden">
-        Use Fingerprint / Face ID
-      </button>
     </div>
-
-    <!-- Emergency Reset Option -->
-    <button onclick="resetVault()" class="text-xs text-slate-500 hover:text-rose-400 underline pt-4">
-      Forgot PIN or clear local vault?
-    </button>
   </div>
-</div>
 
-  <!-- ================= APP HEADER ================= -->
-  <header class="sticky top-0 z-30 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex justify-between items-center">
-    <div class="flex items-center space-x-2">
-      <div class="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-sm">W</div>
-      <span class="font-bold text-lg text-white">Wealth</span>
-    </div>
-    <div class="flex items-center space-x-2">
-      <button onclick="openSettingsModal()" class="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-      </button>
-      <button onclick="lockVault()" class="p-2 text-slate-400 hover:text-rose-400 rounded-xl hover:bg-slate-800 transition">
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-      </button>
-    </div>
-  </header>
-
-  <!-- ================= MAIN CONTENT VIEWS ================= -->
-  <main class="flex-1 pb-24 max-w-lg mx-auto w-full px-4 pt-4">
-
-    <!-- VIEW 1: DASHBOARD -->
-    <section id="view-dashboard" class="space-y-6">
-      <!-- Net Worth Hero Card -->
-      <div id="hero-networth-card" class="bg-gradient-to-br from-indigo-900/60 to-slate-800 border border-indigo-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden">
-        <div class="flex justify-between items-start">
-          <span class="text-xs font-semibold uppercase tracking-wider text-indigo-300">Net Worth</span>
-          <span class="text-xs text-slate-400 bg-slate-900/60 px-2.5 py-1 rounded-full border border-slate-700/50" id="hero-account-count">0 Accounts</span>
-        </div>
-        <div class="mt-3">
-          <div class="text-4xl font-extrabold text-white tracking-tight" id="hero-networth-amount">£0.00</div>
-        </div>
+  <!-- ================= 2. MAIN APP VIEWPORT (HIDDEN WHILE LOCKED) ================= -->
+  <div id="app-viewport" class="hidden min-h-screen flex flex-col justify-between">
+    <!-- APP HEADER -->
+    <header class="sticky top-0 z-30 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center space-x-2">
+        <div class="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-sm">W</div>
+        <span class="font-bold text-lg text-white">Wealth</span>
       </div>
-
-      <!-- Tag Summary Horizontal Scroll Cards -->
-      <div>
-        <div class="flex justify-between items-center mb-3">
-          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Dashboard Tags</h2>
-        </div>
-        <div id="dashboard-tag-cards" class="flex space-x-3 overflow-x-auto no-scrollbar pb-1"></div>
+      <div class="flex items-center space-x-2">
+        <button onclick="openSettingsModal()" class="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        </button>
+        <button onclick="lockVault()" class="p-2 text-slate-400 hover:text-rose-400 rounded-xl hover:bg-slate-800 transition">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+        </button>
       </div>
+    </header>
 
-      <!-- Quick Action FAB Button -->
-      <button onclick="openSnapshotModal()" class="w-full bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-medium py-3.5 rounded-2xl transition flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/25">
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        <span>Record Balance Update</span>
-      </button>
+    <!-- MAIN CONTENT VIEWS -->
+    <main class="flex-1 pb-24 max-w-lg mx-auto w-full px-4 pt-4">
 
-      <!-- Recent Account Ledger -->
-      <div>
-        <div class="flex justify-between items-center mb-3">
-          <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Accounts</h2>
-          <button onclick="openAddAccountModal()" class="text-xs text-indigo-400 font-medium hover:underline">+ Add Account</button>
-        </div>
-        <div id="dashboard-accounts-list" class="space-y-3"></div>
-      </div>
-    </section>
-
-    <!-- VIEW 2: ANALYTICS -->
-    <section id="view-analytics" class="space-y-6 hidden">
-      <div class="bg-slate-800 border border-slate-700/60 rounded-3xl p-5 shadow-lg">
-        <div class="flex justify-between items-center mb-4">
-          <h2 class="text-sm font-semibold text-slate-200">Balance History</h2>
-          <div class="flex bg-slate-900 p-1 rounded-xl text-xs space-x-1">
-            <button onclick="setChartTimeframe('1M')" class="tf-btn px-2.5 py-1 rounded-lg text-slate-400 font-medium hover:text-white" data-tf="1M">1M</button>
-            <button onclick="setChartTimeframe('6M')" class="tf-btn px-2.5 py-1 rounded-lg text-slate-400 font-medium hover:text-white" data-tf="6M">6M</button>
-            <button onclick="setChartTimeframe('1Y')" class="tf-btn px-2.5 py-1 rounded-lg text-slate-400 font-medium hover:text-white" data-tf="1Y">1Y</button>
-            <button onclick="setChartTimeframe('MAX')" class="tf-btn px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-medium" data-tf="MAX">MAX</button>
+      <!-- VIEW 1: DASHBOARD -->
+      <section id="view-dashboard" class="space-y-6">
+        <!-- Net Worth Hero Card -->
+        <div id="hero-networth-card" class="bg-gradient-to-br from-indigo-900/60 to-slate-800 border border-indigo-500/20 rounded-3xl p-6 shadow-xl relative overflow-hidden">
+          <div class="flex justify-between items-start">
+            <span class="text-xs font-semibold uppercase tracking-wider text-indigo-300">Net Worth</span>
+            <span class="text-xs text-slate-400 bg-slate-900/60 px-2.5 py-1 rounded-full border border-slate-700/50" id="hero-account-count">0 Accounts</span>
+          </div>
+          <div class="mt-3">
+            <div class="text-4xl font-extrabold text-white tracking-tight" id="hero-networth-amount">£0.00</div>
           </div>
         </div>
-        <div class="h-64">
-          <canvas id="lineChart"></canvas>
+
+        <!-- Tag Summary Horizontal Scroll Cards -->
+        <div>
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Dashboard Tags</h2>
+          </div>
+          <div id="dashboard-tag-cards" class="flex space-x-3 overflow-x-auto no-scrollbar pb-1"></div>
         </div>
-      </div>
 
-      <div class="bg-slate-800 border border-slate-700/60 rounded-3xl p-5 shadow-lg">
-        <h2 class="text-sm font-semibold text-slate-200 mb-4">Allocation by Tag</h2>
-        <div class="h-56">
-          <canvas id="donutChart"></canvas>
+        <!-- Quick Action FAB Button -->
+        <button onclick="openSnapshotModal()" class="w-full bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-medium py-3.5 rounded-2xl transition flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/25">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          <span>Record Balance Update</span>
+        </button>
+
+        <!-- Recent Account Ledger -->
+        <div>
+          <div class="flex justify-between items-center mb-3">
+            <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-400">Accounts</h2>
+            <button onclick="openAddAccountModal()" class="text-xs text-indigo-400 font-medium hover:underline">+ Add Account</button>
+          </div>
+          <div id="dashboard-accounts-list" class="space-y-3"></div>
         </div>
-      </div>
-    </section>
+      </section>
 
-  </main>
+      <!-- VIEW 2: ANALYTICS -->
+      <section id="view-analytics" class="space-y-6 hidden">
+        <div class="bg-slate-800 border border-slate-700/60 rounded-3xl p-5 shadow-lg">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-sm font-semibold text-slate-200">Balance History</h2>
+            <div class="flex bg-slate-900 p-1 rounded-xl text-xs space-x-1">
+              <button onclick="setChartTimeframe('1M')" class="tf-btn px-2.5 py-1 rounded-lg text-slate-400 font-medium hover:text-white" data-tf="1M">1M</button>
+              <button onclick="setChartTimeframe('6M')" class="tf-btn px-2.5 py-1 rounded-lg text-slate-400 font-medium hover:text-white" data-tf="6M">6M</button>
+              <button onclick="setChartTimeframe('1Y')" class="tf-btn px-2.5 py-1 rounded-lg text-slate-400 font-medium hover:text-white" data-tf="1Y">1Y</button>
+              <button onclick="setChartTimeframe('MAX')" class="tf-btn px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-medium" data-tf="MAX">MAX</button>
+            </div>
+          </div>
+          <div class="h-64">
+            <canvas id="lineChart"></canvas>
+          </div>
+        </div>
 
-  <!-- ================= BOTTOM NAVIGATION ================= -->
-  <nav class="fixed bottom-0 left-0 right-0 z-30 bg-slate-900/90 backdrop-blur-md border-t border-slate-800 py-2 px-8 flex justify-around">
-    <button onclick="switchTab('dashboard')" id="nav-dashboard" class="flex flex-col items-center space-y-1 text-indigo-400">
-      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-      <span class="text-[10px] font-medium">Dashboard</span>
-    </button>
-    <button onclick="switchTab('analytics')" id="nav-analytics" class="flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-300">
-      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z"/></svg>
-      <span class="text-[10px] font-medium">Analytics</span>
-    </button>
-  </nav>
+        <div class="bg-slate-800 border border-slate-700/60 rounded-3xl p-5 shadow-lg">
+          <h2 class="text-sm font-semibold text-slate-200 mb-4">Allocation by Tag</h2>
+          <div class="h-56">
+            <canvas id="donutChart"></canvas>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- BOTTOM NAVIGATION -->
+    <nav class="fixed bottom-0 left-0 right-0 z-30 bg-slate-900/90 backdrop-blur-md border-t border-slate-800 py-2 px-8 flex justify-around">
+      <button onclick="switchTab('dashboard')" id="nav-dashboard" class="flex flex-col items-center space-y-1 text-indigo-400">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        <span class="text-[10px] font-medium">Dashboard</span>
+      </button>
+      <button onclick="switchTab('analytics')" id="nav-analytics" class="flex flex-col items-center space-y-1 text-slate-500 hover:text-slate-300">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z"/></svg>
+        <span class="text-[10px] font-medium">Analytics</span>
+      </button>
+    </nav>
+  </div>
 
   <!-- ================= MODALS ================= -->
 
@@ -161,6 +176,162 @@
   <div id="modal-account" class="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
     <div class="bg-slate-800 border border-slate-700/80 rounded-t-3xl sm:rounded-3xl w-full max-w-md p-6 space-y-4">
       <div class="flex justify-between items-center">
+        <h3 id="modal-account-title" class="text-lg font-bold text-white">Add Account</h3>
+        <button id="btn-delete-account" onclick="deleteCurrentAccount()" class="text-rose-400 hover:text-rose-300 text-xs font-semibold hidden flex items-center space-x-1">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          <span>Delete</span>
+        </button>
+      </div>
+
+      <input type="hidden" id="edit-acc-id" value="">
+
+      <div class="space-y-3 text-sm">
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">Account Name</label>
+          <input id="acc-name" type="text" placeholder="e.g., Main Monzo" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">Institution / Location</label>
+          <input id="acc-institution" type="text" placeholder="e.g., Monzo Bank" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">Account Type</label>
+          <select id="acc-type" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+            <option value="CURRENT">Current Account</option>
+            <option value="SAVINGS">Savings</option>
+            <option value="ISA_CASH">Cash ISA</option>
+            <option value="ISA_STOCKS">Stocks & Shares ISA</option>
+            <option value="PREMIUM_BONDS">Premium Bonds</option>
+            <option value="PENSION">Pension</option>
+            <option value="MORTGAGE">Mortgage (Liability)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">Tags</label>
+          <div id="acc-tags-selector" class="flex flex-wrap gap-2 pt-1"></div>
+        </div>
+      </div>
+      <div class="flex space-x-3 pt-2">
+        <button onclick="closeAddAccountModal()" class="w-1/2 bg-slate-700 hover:bg-slate-600 text-white font-medium py-3 rounded-xl">Cancel</button>
+        <button onclick="saveAccount()" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 rounded-xl">Save Account</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Record Snapshot -->
+  <div id="modal-snapshot" class="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-slate-800 border border-slate-700/80 rounded-t-3xl sm:rounded-3xl w-full max-w-md p-6 space-y-4">
+      <h3 class="text-lg font-bold text-white">Record Balance Update</h3>
+      <div class="space-y-3 text-sm">
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">Select Account</label>
+          <select id="snap-account-id" onchange="updateSnapshotMathPreview()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500"></select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-400 text-xs mb-1">Money In since update</label>
+            <input id="snap-money-in" type="number" step="0.01" value="0.00" oninput="updateSnapshotMathPreview()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-slate-400 text-xs mb-1">Money Out since update</label>
+            <input id="snap-money-out" type="number" step="0.01" value="0.00" oninput="updateSnapshotMathPreview()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+          </div>
+        </div>
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">New Total Balance</label>
+          <input id="snap-new-balance" type="number" step="0.01" placeholder="0.00" oninput="updateSnapshotMathPreview()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white font-bold text-lg focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div class="bg-slate-900/80 border border-slate-700/50 rounded-2xl p-4 text-xs space-y-1">
+          <div class="flex justify-between text-slate-400">
+            <span>Previous Balance:</span>
+            <span id="math-prev">£0.00</span>
+          </div>
+          <div class="flex justify-between text-slate-400">
+            <span>Expected Balance:</span>
+            <span id="math-expected">£0.00</span>
+          </div>
+          <div class="flex justify-between font-semibold pt-1 border-t border-slate-800">
+            <span class="text-slate-300">Variance (Growth/Interest):</span>
+            <span id="math-variance" class="text-emerald-400">£0.00</span>
+          </div>
+        </div>
+      </div>
+      <div class="flex space-x-3 pt-2">
+        <button onclick="closeSnapshotModal()" class="w-1/2 bg-slate-700 hover:bg-slate-600 text-white font-medium py-3 rounded-xl">Cancel</button>
+        <button onclick="saveSnapshot()" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 rounded-xl">Save Snapshot</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3: Settings & Security -->
+  <div id="modal-settings" class="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-slate-800 border border-slate-700/80 rounded-t-3xl sm:rounded-3xl w-full max-w-md p-6 space-y-5 max-h-[85vh] overflow-y-auto">
+      <h3 class="text-lg font-bold text-white">Settings & Tags</h3>
+      
+      <!-- Biometric Setup -->
+      <div class="bg-slate-900 border border-slate-700/60 p-4 rounded-2xl space-y-2">
+        <div class="flex justify-between items-center">
+          <div>
+            <div class="text-xs font-semibold text-white">Biometric Unlock</div>
+            <div class="text-[10px] text-slate-400">Fingerprint or Face Unlock</div>
+          </div>
+          <button id="btn-toggle-bio" onclick="registerBiometrics()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-xl font-medium">Enable</button>
+        </div>
+      </div>
+
+      <!-- Create Tag -->
+      <div class="space-y-3">
+        <h4 class="text-xs font-semibold uppercase text-slate-400">Create Tag</h4>
+        <div class="flex space-x-2">
+          <input id="new-tag-name" type="text" placeholder="Tag Name" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-sm text-white focus:outline-none">
+          <input id="new-tag-color" type="color" value="#3b82f6" class="w-10 h-10 rounded-xl border border-slate-700 bg-slate-900 cursor-pointer">
+          <button onclick="addNewTag()" class="bg-indigo-600 text-white text-xs px-4 rounded-xl font-medium">Add</button>
+        </div>
+      </div>
+
+      <!-- Manage Tags -->
+      <div class="space-y-2">
+        <h4 class="text-xs font-semibold uppercase text-slate-400">Manage Tags</h4>
+        <div id="settings-tags-list" class="space-y-2"></div>
+      </div>
+
+      <!-- Backup / Restore -->
+      <div class="space-y-2 pt-3 border-t border-slate-700">
+        <h4 class="text-xs font-semibold uppercase text-slate-400">Data Management</h4>
+        <div class="flex space-x-2">
+          <button onclick="exportData()" class="w-1/2 border border-slate-600 hover:bg-slate-700 text-slate-200 text-xs py-2.5 rounded-xl font-medium">Export Backup</button>
+          <button onclick="document.getElementById('import-file').click()" class="w-1/2 border border-slate-600 hover:bg-slate-700 text-slate-200 text-xs py-2.5 rounded-xl font-medium">Import Backup</button>
+          <input type="file" id="import-file" onchange="importData(event)" class="hidden" accept=".json">
+        </div>
+      </div>
+
+      <button onclick="closeSettingsModal()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-medium py-3 rounded-xl mt-4">Close</button>
+    </div>
+  </div>
+
+  <!-- ================= APPLICATION LOGIC (JS) ================= -->
+  <script>
+    /* -------------------------------------------------------------
+     * 1. SECURE STORAGE ENGINE (Web Crypto AES-256 + IndexedDB)
+     * ------------------------------------------------------------- */
+    class SecureVault {
+      constructor() {
+        this.dbName = "LocalWealthVault";
+        this.db = null;
+        this.cryptoKey = null;
+      }
+
+      async init() {
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open(this.dbName, 1);
+          req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains("store")) {
+              db.createObjectStore("store", { keyPath: "id" });
+            }
+          };
+          req.onsuccess = (e) => { this.db = e.s="flex justify-between items-center">
         <h3 id="modal-account-title" class="text-lg font-bold text-white">Add Account</h3>
         <button id="btn-delete-account" onclick="deleteCurrentAccount()" class="text-rose-400 hover:text-rose-300 text-xs font-semibold hidden flex items-center space-x-1">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
