@@ -1,6 +1,6 @@
 {
-  "name": "Wealth Tracker PWA",
-  "short_name": "Wealth",
+  "name": "Money Manager PWA",
+  "short_name": "MoneyManager",
   "description": "Local encrypted wealth and asset tracker",
   "start_url": "./",
   "scope": "./",

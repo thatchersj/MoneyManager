@@ -1,22 +1,19 @@
-const CACHE_NAME = 'wealth-tracker-v1';
-const ASSETS_TO_CACHE = [
-  './',
-  './index.html',
-  './manifest.json',
-  'https://cdn.tailwindcss.com',
-  'https://cdn.jsdelivr.net/npm/chart.js'
-];
+const CACHE_NAME = 'moneymanager-v3';
 
-// Install Event: Pre-cache essential files
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      return cache.addAll([
+        './',
+        './index.html',
+        './manifest.json',
+        'https://cdn.tailwindcss.com',
+        'https://cdn.jsdelivr.net/npm/chart.js'
+      ]);
     }).then(() => self.skipWaiting())
   );
 });
 
-// Activate Event: Clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -27,19 +24,19 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event: Cache-First strategy with Network Fallback
 self.addEventListener('fetch', (event) => {
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      caches.match('./index.html').then((response) => {
+        return response || fetch(event.request);
+      })
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).catch(() => {
-        // Fallback to cached index.html for page navigations if offline
-        if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
-      });
+      return cachedResponse || fetch(event.request);
     })
   );
 });
