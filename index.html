@@ -312,6 +312,173 @@
 
   <!-- ================= APPLICATION LOGIC (JS) ================= -->
   <script>
+    /* -------------------------------------------------------------
+     * 1. SECURE STORAGE ENGINE (Web Crypto AES-256 + IndexedDB)
+     * ------------------------------------------------------------- */
+    class SecureVault {
+      constructor() {
+        this.dbName = "LocalWealthVault";
+        this.db = null;
+        this.cryptoKey = null;
+      }
+
+      async init() {
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open(this.dbName, 1);
+          req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            if (!db.objectStoreNames.contains("store")) {
+              db.createObjectStore("store", { keyPath: "id" });
+            }
+          };
+          req.onsuccess = (e) => { this.db = e.th stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z"/></svg>
+        <span class="text-[10px] font-medium">Analytics</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ================= MODALS ================= -->
+
+  <!-- Modal 1: Add/Edit Account -->
+  <div id="modal-account" class="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-slate-800 border border-slate-700/80 rounded-t-3xl sm:rounded-3xl w-full max-w-md p-6 space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 id="modal-account-title" class="text-lg font-bold text-white">Add Account</h3>
+        <button id="btn-delete-account" onclick="deleteCurrentAccount()" class="text-rose-400 hover:text-rose-300 text-xs font-semibold hidden flex items-center space-x-1">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          <span>Delete</span>
+        </button>
+      </div>
+
+      <input type="hidden" id="edit-acc-id" value="">
+
+      <div class="space-y-3 text-sm">
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">Account Name</label>
+          <input id="acc-name" type="text" placeholder="e.g., Main Monzo" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">Institution / Location</label>
+          <input id="acc-institution" type="text" placeholder="e.g., Monzo Bank" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">Account Type</label>
+          <select id="acc-type" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+            <option value="CURRENT">Current Account</option>
+            <option value="SAVINGS">Savings</option>
+            <option value="ISA_CASH">Cash ISA</option>
+            <option value="ISA_STOCKS">Stocks & Shares ISA</option>
+            <option value="PREMIUM_BONDS">Premium Bonds</option>
+            <option value="PENSION">Pension</option>
+            <option value="MORTGAGE">Mortgage (Liability)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">Tags</label>
+          <div id="acc-tags-selector" class="flex flex-wrap gap-2 pt-1"></div>
+        </div>
+      </div>
+      <div class="flex space-x-3 pt-2">
+        <button onclick="closeAddAccountModal()" class="w-1/2 bg-slate-700 hover:bg-slate-600 text-white font-medium py-3 rounded-xl">Cancel</button>
+        <button onclick="saveAccount()" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 rounded-xl">Save Account</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Record Snapshot -->
+  <div id="modal-snapshot" class="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-slate-800 border border-slate-700/80 rounded-t-3xl sm:rounded-3xl w-full max-w-md p-6 space-y-4">
+      <h3 class="text-lg font-bold text-white">Record Balance Update</h3>
+      <div class="space-y-3 text-sm">
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">Select Account</label>
+          <select id="snap-account-id" onchange="updateSnapshotMathPreview()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500"></select>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-slate-400 text-xs mb-1">Money In since update</label>
+            <input id="snap-money-in" type="number" step="0.01" value="0.00" oninput="updateSnapshotMathPreview()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-slate-400 text-xs mb-1">Money Out since update</label>
+            <input id="snap-money-out" type="number" step="0.01" value="0.00" oninput="updateSnapshotMathPreview()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500">
+          </div>
+        </div>
+        <div>
+          <label class="block text-slate-400 text-xs mb-1">New Total Balance</label>
+          <input id="snap-new-balance" type="number" step="0.01" placeholder="0.00" oninput="updateSnapshotMathPreview()" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white font-bold text-lg focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div class="bg-slate-900/80 border border-slate-700/50 rounded-2xl p-4 text-xs space-y-1">
+          <div class="flex justify-between text-slate-400">
+            <span>Previous Balance:</span>
+            <span id="math-prev">£0.00</span>
+          </div>
+          <div class="flex justify-between text-slate-400">
+            <span>Expected Balance:</span>
+            <span id="math-expected">£0.00</span>
+          </div>
+          <div class="flex justify-between font-semibold pt-1 border-t border-slate-800">
+            <span class="text-slate-300">Variance (Growth/Interest):</span>
+            <span id="math-variance" class="text-emerald-400">£0.00</span>
+          </div>
+        </div>
+      </div>
+      <div class="flex space-x-3 pt-2">
+        <button onclick="closeSnapshotModal()" class="w-1/2 bg-slate-700 hover:bg-slate-600 text-white font-medium py-3 rounded-xl">Cancel</button>
+        <button onclick="saveSnapshot()" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 rounded-xl">Save Snapshot</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 3: Settings & Security -->
+  <div id="modal-settings" class="fixed inset-0 z-40 bg-slate-950/80 backdrop-blur-sm hidden flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-slate-800 border border-slate-700/80 rounded-t-3xl sm:rounded-3xl w-full max-w-md p-6 space-y-5 max-h-[85vh] overflow-y-auto">
+      <h3 class="text-lg font-bold text-white">Settings & Tags</h3>
+      
+      <!-- Biometric Setup -->
+      <div class="bg-slate-900 border border-slate-700/60 p-4 rounded-2xl space-y-2">
+        <div class="flex justify-between items-center">
+          <div>
+            <div class="text-xs font-semibold text-white">Biometric Unlock</div>
+            <div class="text-[10px] text-slate-400">Fingerprint or Face Unlock</div>
+          </div>
+          <button id="btn-toggle-bio" onclick="registerBiometrics()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-xl font-medium">Enable</button>
+        </div>
+      </div>
+
+      <!-- Create Tag -->
+      <div class="space-y-3">
+        <h4 class="text-xs font-semibold uppercase text-slate-400">Create Tag</h4>
+        <div class="flex space-x-2">
+          <input id="new-tag-name" type="text" placeholder="Tag Name" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-sm text-white focus:outline-none">
+          <input id="new-tag-color" type="color" value="#3b82f6" class="w-10 h-10 rounded-xl border border-slate-700 bg-slate-900 cursor-pointer">
+          <button onclick="addNewTag()" class="bg-indigo-600 text-white text-xs px-4 rounded-xl font-medium">Add</button>
+        </div>
+      </div>
+
+      <!-- Manage Tags -->
+      <div class="space-y-2">
+        <h4 class="text-xs font-semibold uppercase text-slate-400">Manage Tags</h4>
+        <div id="settings-tags-list" class="space-y-2"></div>
+      </div>
+
+      <!-- Backup / Restore -->
+      <div class="space-y-2 pt-3 border-t border-slate-700">
+        <h4 class="text-xs font-semibold uppercase text-slate-400">Data Management</h4>
+        <div class="flex space-x-2">
+          <button onclick="exportData()" class="w-1/2 border border-slate-600 hover:bg-slate-700 text-slate-200 text-xs py-2.5 rounded-xl font-medium">Export Backup</button>
+          <button onclick="document.getElementById('import-file').click()" class="w-1/2 border border-slate-600 hover:bg-slate-700 text-slate-200 text-xs py-2.5 rounded-xl font-medium">Import Backup</button>
+          <input type="file" id="import-file" onchange="importData(event)" class="hidden" accept=".json">
+        </div>
+      </div>
+
+      <button onclick="closeSettingsModal()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-medium py-3 rounded-xl mt-4">Close</button>
+    </div>
+  </div>
+
+  <!-- ================= APPLICATION LOGIC (JS) ================= -->
+  <script>
     class SecureVault {
       constructor() { this.dbName = 'LocalWealthVault'; this.db = null; this.cryptoKey = null; }
       async init() {
